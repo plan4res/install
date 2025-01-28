@@ -1,0 +1,480 @@
+#!/bin/bash
+
+INSTALLDIR=$(pwd)
+configfile="$INSTALLDIR/p4r-env/config/plan4res.conf"
+datestart=$(date +"%Y-%m-%d-%H:%M")
+log_file="$INSTALLDIR/plan4resInstall_$datestart.log"
+echo "$log_file"
+echo "Installing plan4res on $INSTALLDIR" | tee -a  "$log_file"
+echo "starting $(date +"%Y-%m-%d-%H:%M")" | tee -a  "$log_file"
+touch $log_file
+
+test_option() {
+	local code=$1
+	local option=$2
+	if [[ $option == --* ]] || [[ $option == -* ]] || [[ $option == "" ]]; then
+		echo "Error: input not provided after $code" | tee -a "$log_file"
+		exit 1
+	fi
+}
+
+p4r() {
+	export SINGULARITY_BIND=$INSTALLDIR/p4r-env
+	cd $INSTALLDIR/p4r-env	
+	bin/p4r python scripts/test.py | tee -a $log_file
+	cd $INSTALLDIR
+	return 0
+}
+
+usage() {
+	echo "Usage: $0 [-S <SOLVER>] [-I <installer>] [-L <license>] [-v <version>] "
+	echo "          [-M <mpi>] [-U <software>] [-V <memory>] [-C] [-H]"
+	echo "SOLVER is : CPLEX, GUROBI, SCIP, or HiGHS"
+	echo "Option -I is used only with CPLEX and GUROBI"	
+	echo "Option -L is used only with GUROBI"	
+	echo "Option -v is used only with SCIP"	
+	echo "Option -U is used to force update of coin, stopt and sms++"	
+	echo "       it can be included many times"
+	echo "       software can be: coin, stopt or sms++"	
+	echo "Option -M is used to change the mpi version (default: OpenMPI)"	
+	echo "       mpi is the MPI version: MPICH or OpenMPI"
+	echo "Option -V means that the install is done on Windows with Vagrant"
+	echo "       memory is the memory to be used by Vagrant (eg. 8192), it must be a multiple of 1024 "
+	echo "Option -C means that everything will be uninstalled"	
+	echo "Option -H prints this help"
+	exit 0
+}
+
+clean() {
+	echo "removing $INSTALLDIR/p4r-env" | tee -a "$log_file"
+	rm -rf $INSTALLDIR/p4r-env
+	echo "$INSTALLDIR/p4r-env removed" | tee -a "$log_file"
+	return 0
+}
+
+change_mpi() {
+	local MPIVERSION=$1
+	if [[ ! -f $configfile ]]; then
+		echo "error: $configfile does not exist" | tee -a "$log_file"
+		exit 1
+	fi
+	echo "updating MPI version in $configfile, changing to $MPIVERSION" | tee -a "$log_file"
+	sed -i.bak -E "s|P4R_MPI_IMP=\${P4R_MPI_IMP:-\"[^\"]*\"}|P4R_MPI_IMP=\${P4R_MPI_IMP:-\"$MPIVERSION\"}|" "$configfile"  
+	echo "MPI version updated in $configfile, changed to $MPIVERSION" | tee -a "$log_file"  
+}
+
+p4r_env_installed() {
+	if [[ (-d "$INSTALLDIR/p4r-env") && (-f "$INSTALLDIR/p4r-env/.cache_p4r/plan4res_$MPI.sif") && (-d "$INSTALLDIR/p4r-env/scripts") && (-f "$INSTALLDIR/p4r-env/scripts/test.py") ]]; then
+		cd $INSTALLDIR/p4r-env
+		pwd
+		output=$(bin/p4r python scripts/test.py)
+		if [ "$output"="OK" ]; then
+			echo "p4r-env is installed in $INSTALLDIR" | tee -a "$log_file"
+			return 0
+		else
+			echo "p4r-env is not installed in $INSTALLDIR" | tee -a "$log_file"
+			return 1
+		fi
+	else
+		echo "p4r-env is not installed in $INSTALLDIR" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+stopt_installed() {
+	if [[ -d "$INSTALLDIR/p4r-env/scripts/add-ons/install/stopt" ]]; then
+		echo "stopt is installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 0
+	else
+		echo "stopt is NOT installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+sms_installed() {
+	if [[ (-d "$INSTALLDIR/p4r-env/scripts/add-ons/install/sms++") && (-f "$INSTALLDIR/p4r-env/scripts/add-ons/install/sms++/bin/investment_solver") && (-f "$INSTALLDIR/p4r-env/scripts/add-ons/install/sms++/bin/sddp_solver") && (-f "$INSTALLDIR/p4r-env/scripts/add-ons/install/sms++/bin/ucblock_solver")]]; then
+		echo "sms++ is installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 0
+	else
+		echo "sms++ is NOT installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+cplex_installed() {
+	if [ -d "$INSTALLDIR/p4r-env/scripts/add-ons/install/cplex" ]; then
+		echo "CPLEX is installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 0
+	else
+		echo "CPLEX is NOT installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+scip_installed() {
+	if [ -d "$INSTALLDIR/p4r-env/scripts/add-ons/install/scip" ]; then
+		echo "SCIP is installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 0
+	else
+		echo "SCIP is NOT installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+highs_installed() {
+	if [ -d "$INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS" ]; then
+		echo "HiGHS is installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 0
+	else
+		echo "HiGHS is NOT installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+python_installed() {
+	if [[ (-d "$INSTALLDIR/p4r-env/scripts/python/plan4res-scripts") &&  (-d "$INSTALLDIR/p4r-env/scripts/python/openentrance") ]]; then
+		echo "python scripts are installed in $INSTALLDIR/p4r-env/scripts/python/" | tee -a "$log_file"
+		return 0
+	else
+		echo "python scripts are NOT installed in $INSTALLDIR/p4r-env/scripts/python/" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+include_installed() {
+	if [ -d "$INSTALLDIR/p4r-env/scripts/include" ]; then
+		echo "running scripts are installed in $INSTALLDIR/p4r-env/scripts/include/" | tee -a "$log_file"
+		return 0
+	else
+		echo "running scripts are NOT installed in $INSTALLDIR/p4r-env/scripts/include" | tee -a "$log_file"
+		return 1
+	fi
+}
+
+SOLVER=""
+INSTALLER=""
+LICENSE=""
+VAGRANT=""
+MPI="OpenMPI"
+STOPT=0
+SMSPP=0
+COIN=0
+version="9.2.0"
+
+# treat arguments
+while [[ "$#" -gt 0 ]]; do
+	case $1 in
+		-S|--solver) 
+			SOLVER=$2
+			test_option $1 $2
+			shift 2
+			echo "install with solver $SOLVER" | tee -a "$log_file"
+			;;
+		-I|--installer) 
+			INSTALLER=$2 
+			test_option $1 $2
+			shift 2
+			echo "use installer $INSTALLER" | tee -a "$log_file"
+		;;
+		-v|--version) 
+			version=$2 
+			test_option $1 $2
+			shift 2
+			echo "install version $version" | tee -a "$log_file"
+		;;
+		-L|--license) 
+			LICENSE=$2 
+			test_option $1 $2
+			shift 2
+			echo "use license $LICENSE" | tee -a "$log_file"
+		;;
+		-V|--vagrant) 
+			VAGRANT="VAGRANT"
+			MEMORY=$2 
+			test_option $1 $2
+			echo "install with Vagrant, memory: $MEMORY" | tee -a "$log_file"
+			shift 2
+			;;
+		-C|--clean) 
+			echo "Remove previous install" | tee -a "$log_file"
+			clean 
+			exit 0
+			;;
+		-H|--help) 
+			usage 
+			;;
+		-P|--p4r) 
+			p4r 
+			exit 0 
+			;;
+		-M|--mpi) 
+			MPI=$2 
+			test_option $1 $2
+			echo "Install with $MPI" | tee -a "$log_file"
+			change_mpi "$MPI"
+			shift 2 
+			;;
+		-U|--update)
+			test_option $1 $2
+			what=$2
+			if [ "$what" = "stopt" ]; then STOPT=1 ; fi
+			if [ "$what" = "sms++" ]; then SMSPP=1 ; fi
+			if [ "$what" = "coin" ]; then COIN=1 ; fi
+			shift 2 
+			;;
+		*) 
+			echo "unknown option $1" | tee -a "$log_file"
+			usage 
+			;;
+	esac
+done
+
+# install p4r-env
+export P4R_ENV=$INSTALLDIR/p4r-env/bin/p4r
+export SINGULARITY_BIND=$INSTALLDIR/p4r-env
+if p4r_env_installed; then
+	echo "p4r-env already installed" | tee -a "$log_file"
+else
+	echo "installing p4r-env" | tee -a "$log_file"
+	if [[ -d $INSTALLDIR/p4r-env ]]; then 
+		echo "p4r-env exists, removing...." >> "$log_file"
+		rm -rf $INSTALLDIR/p4r-env 
+		echo "p4r-env removed...." >> "$log_file"
+	fi
+	echo "cloning p4r-env...." >> "$log_file"
+	git clone --recursive https://github.com/plan4res/p4r-env | tee -a $log_file
+	wait
+	echo "p4r-env cloned" >> "$log_file"
+	export SINGULARITY_BIND=$INSTALLDIR/p4r-env
+	cd $INSTALLDIR/p4r-env
+	if [ "$VAGRANT" = "VAGRANT" ]; then
+		echo "Install plan4res with VAGRANT, requested memory: $MEMORY" | tee -a "$log_file"
+		if [[ -n $MEMORY ]]; then
+			if ! [[ $MEMORY =~ ^[0-9]+$ ]]; then
+				echo "Error : Option -V <memory> must be an integer, multiple of 1024." | tee -a "$log_file"
+				exit 1
+			fi
+			if (( MEMORY % 1024 != 0 )); then
+				echo "Error : Option -V <memory> must be a multiple of 1024." | tee -a "$log_file"
+				exit 1
+			fi
+		fi
+		echo "installing with Vagrant" | tee -a "$log_file"
+		vagrantfile="$INSTALLDIR/p4r-env/Vagrantfile"
+		sed -i 's/vb.memory = "[0-9]\+"/vb.memory = "'"$MEMORY"'"/' "$vagrantfile"
+		echo "Vagrantfile updated, memory requested: $MEMORY" | tee -a "$log_file"
+		echo "installing vagrant-proxyconf" | tee -a "$log_file"
+		vagrant plugin install vagrant-proxyconf
+		wait
+		echo "vagrant-proxyconf installed, starting Vagrant Virtual Machine" | tee -a "$log_file"
+		vagrant up 
+		echo "VM started" | tee -a "$log_file"
+	fi
+	git config submodule.recurse true
+	echo "downloading p4r-env SIF image" | tee -a "$log_file"
+	p4r
+	echo "p4r-env SIF image downloaded" | tee -a "$log_file"
+
+	# edit config/plan4res.conf to prevent download of sif image at each bin/p4r launch
+	# comment row P4R_SINGULARITY_IMAGE_PRESERVE=0
+	# uncomment row P4R_SINGULARITY_IMAGE_PRESERVE=1
+	# add row P4R_SINGULARITY_IMAGE_PRESERVE=1 if not present
+	echo "Updating $configfile to prevent download of SIF image" >> "$log_file"
+	sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=0/ s/^/#/' "$configfile"	
+	sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=1/ s/^#//' "$configfile"  
+	grep -qxF 'P4R_SINGULARITY_IMAGE_PRESERVE=1' "$configfile" || echo 'P4R_SINGULARITY_IMAGE_PRESERVE=1' >> "$configfile" 
+	echo "$configfile updated" >> "$log_file"
+	cd $INSTALLDIR
+	echo "p4r-env successfully installed" | tee -a "$log_file"
+fi
+
+# check SOLVER
+if [[ "$SOLVER" != "" && "$SOLVER" != "CPLEX" && "$SOLVER" != "GUROBI" && "$SOLVER" != "SCIP" && "$SOLVER" != "HiGHS" ]]; then
+	echo "Error : SOLVER must be among : CPLEX, GUROBI, SCIP, HiGHS." | tee -a "$log_file"
+	usage
+fi
+
+SolverFlag=""
+# Check installer 
+	
+if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
+	if [[ -z $INSTALLER ]]; then
+		echo "Error : Option -L <INSTALLER> is mandatory for $SOLVER." | tee -a "$log_file"
+		usage
+	fi
+	if [[ $SOLVER == "CPLEX" && $INSTALLER != *.bin ]]; then
+		echo "Error : a .bin file is needed for CPLEX" | tee -a "$log_file"
+		usage
+	elif [[ $SOLVER == "GUROBI" && $INSTALLER != *.tar.gz ]]; then
+		echo "Error : a .tar.gz file s needed for $SOLVER." | tee -a "$log_file"
+		usage
+	fi
+	if [[ $SOLVER == "CPLEX" ]]; then
+		echo "Install plan4res with CPLEX" | tee -a "$log_file"
+		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
+			echo "CPLEX installer: $INSTALLER found, copying to p4r-env" | tee -a "$log_file"
+			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
+			SolverFlag+="--cplex-installer=$INSTALLER "
+		else
+			echo "Error: CPLEX installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
+			exit 1
+		fi
+	elif [[ $SOLVER == "GUROBI" ]]; then
+		echo "Install plan4res with GUROBI" | tee -a "$log_file"
+		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
+			echo "GUROBI installer $INSTALLDIR/$INSTALLER found, copying to p4r-env" | tee -a "$log_file"
+			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
+			if [ -f "$INSTALLDIR/$LICENSE" ] ; then
+				echo "GUROBI license $INSTALLDIR/$LICENSE found, copying to p4r-env" | tee -a "$log_file"
+				cp "$INSTALLDIR/$LICENSE" $INSTALLDIR/p4r-env/
+				SolverFlag+="--gurobi-installer=$INSTALLER --gurobi-license=$LICENSE "
+			else
+				echo "Error: GUROBI license $INSTALLDIR/$LICENSE not found" | tee -a "$log_file"
+				exit 1
+			fi
+		else
+			echo "Error: GUROBI installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
+			exit 1
+		fi
+	fi
+elif [[ ($SOLVER == "SCIP") || ($SOLVER == "HiGHS") ]]; then
+	echo "Installing plan4res with $SOLVER" | tee -a "$log_file"
+	if [ "$SOLVER" = "SCIP" ]; then
+		scip_installed
+		test=$?
+		option="scip"
+		SolverFlag+="--scip-version=$version "
+	elif [ "$SOLVER" = "HiGHS" ]; then
+		highs_installed  
+		test=$?
+		option="HiGHS"
+	fi 
+	if [ $test -eq 0 ] ; then
+		echo "$SOLVER already installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/$option" | tee -a "$log_file"
+	else
+		echo "$SOLVER not installed, installing" | tee -a "$log_file"
+	fi
+	# Ignore option -L for SCIP and HIGHS
+	if [[ -n $INSTALLER ]]; then
+		echo "Warning : option -I $INSTALLER is ignored for $SOLVER." | tee -a "$log_file"
+	fi
+fi
+
+if [ "$SOLVER" != "CPLEX" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/cplex ]; then
+	SolverFlag+="--without-cplex "
+fi
+if [ "$SOLVER" != "GUROBI" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/gurobi ]; then
+	SolverFlag+="--without-gurobi "
+fi
+if [ "$SOLVER" != "SCIP" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/scip ]; then
+	SolverFlag+="--without-scip "
+fi
+if [ "$SOLVER" != "HiGHS" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS ]; then
+	SolverFlag+="--without-highs "
+fi
+SolverFlag+="--without-linux-update --without-smspp --without-interact "
+if [ "$STOPT" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
+if [ "$SMSPP" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
+if [ "$COIN" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
+SolverFlag+="--build-root=$INSTALLDIR/p4r-env/scripts/add-ons/.build --install-root=$INSTALLDIR/p4r-env/scripts/add-ons/install"
+
+echo "Install plan4res with $SOLVER" | tee -a "$log_file"
+
+if ! sms_installed; then
+	cd $INSTALLDIR/p4r-env
+	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/sms++ ]; then
+		echo "sms++ is present in $INSTALLDIR but not correctly installed" | tee -a "$log_file"
+		echo "removing sms++" | tee -a "$log_file"
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/sms++ | tee -a "$log_file"
+		wait
+		echo "sms++ successfully uninstalled" | tee -a "$log_file"
+	fi
+fi
+
+echo "installing/updating sms++ "
+echo "singubind= $SINGULARITY_BIND"
+echo "p4renv=$P4R_ENV"
+cd $INSTALLDIR/p4r-env
+#if [ -f "INSTALL.sh" ]; then rm INSTALL.sh; fi
+#wget https://raw.githubusercontent.com/plan4resDev/Umbrella/plan4res/INSTALL.sh
+cp $INSTALLDIR/INSTALL.sh $INSTALLDIR/p4r-env/
+chmod a+x $INSTALLDIR/p4r-env/INSTALL.sh
+${P4R_ENV} ./INSTALL.sh $SolverFlag
+wait
+cd $INSTALLDIR
+if sms_installed; then
+	echo "sms++ successfully installed with $SOLVER" | tee -a "$log_file"
+else
+	echo "Error: sms++ install failed" | tee -a "$log_file"
+fi
+
+# install python scripts
+if python_installed; then
+	echo "python scripts already installed"
+	cd $INSTALLDIR/p4r-env/scripts/python/plan4res-scripts
+	git pull | tee -a "$log_file"
+	wait
+	cd $INSTALLDIR/p4r-env/scripts/python/openentrance
+	git pull | tee -a "$log_file"
+	wait
+	cd $INSTALLDIR
+else
+	echo "installing python scripts" | tee -a "$log_file"
+	cd $INSTALLDIR/p4r-env/scripts
+	if [[ ! -d "$INSTALLDIR/p4r-env/scripts/python" ]]; then mkdir python; fi
+	cd python
+	if [ -d "$INSTALLDIR/p4r-env/scripts/python/plan4res-scripts" ]; then
+		cd plan4res-scripts
+		git pull | tee -a "$log_file"
+	else
+		git clone https://github.com/plan4res/plan4res-scripts | tee -a "$log_file"
+	fi
+	wait
+	if [ -d "$INSTALLDIR/p4r-env/scripts/python/openentrance" ]; then
+		cd openentrance
+		git pull | tee -a "$log_file"
+	else
+		git clone https://github.com/openENTRANCE/openentrance | tee -a "$log_file"
+	fi
+	wait
+	cd $INSTALLDIR
+fi
+echo "python scripts successfully installed" | tee -a "$log_file"
+
+# install scripts for running plan4res
+if include_installed; then
+	echo "running scripts already installed, updating...." | tee -a "$log_file"
+	cd $INSTALLDIR/p4r-env/scripts/include
+	git pull | tee -a "$log_file"
+	wait
+	cd $INSTALLDIR 
+else
+	echo "installing running scripts" | tee -a "$log_file"
+	cd $INSTALLDIR/p4r-env/scripts
+	git clone https://github.com/plan4res/include | tee -a "$log_file"
+	wait
+	cd $INSTALLDIR
+fi
+cd $INSTALLDIR/p4r-env/scripts/include
+chmod a+x *.sh
+cd $INSTALLDIR
+
+if [ ! $INSTALLDIR/p4r-env/data/toyDataset ]; then
+	echo " Create example dataset toyDataset "
+	cd $INSTALLDIR/p4r-env/data/data
+	git clone https://github.com/plan4res/toyDataset
+fi											  
+
+echo "update environment variables and create plan4res commands"
+cd $INSTALLDIR
+if [ -f user_init_plan4res.sh ]; then
+	chmod a+x user_init_plan4res.sh
+	./user_init_plan4res.sh "$INSTALLDIR"
+else
+	echo "the scipt user_init_plan4res.sh is not present in $INSTALLDIR"
+	echo "You need to move to the location where you want to store your data"
+	echo "and run ./user_init_plan4res.sh <INSTALLDIR>"
+	echo "<INSTALLDIR> is the location where you ran plan4res_install.sh"
+fi
+
+echo "plan4res install completed" | tee -a "$log_file"
