@@ -9,7 +9,7 @@ test_option() {
 	local option=$2
 	if [[ $option == --* ]] || [[ $option == -* ]] || [[ $option == "" ]]; then
 		echo "Error: input not provided after $code" 
-		exit 1
+		exit 1 
 	fi
 }
 
@@ -217,3 +217,4 @@ echo "    MODE = CLEAN / CREATE / FORMAT / SSV / SIM / CEM / SSVandSIM / SSVandC
 echo "    dataset = name of dataset (e.g. mini)"
 echo "    options: see from full help"
 echo " get full help : p4r --help"
+
