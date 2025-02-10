@@ -460,7 +460,17 @@ if [ ! $INSTALLDIR/p4r-env/data/toyDataset ]; then
 	echo " Create example dataset toyDataset "
 	cd $INSTALLDIR/p4r-env/data/data
 	git clone https://github.com/plan4res/toyDataset
-fi											  
+fi
+
+if [ ! $INSTALLDIR/documentation ]; then
+	echo " Get documentation "
+	cd $INSTALLDIR
+	git clone https://github.com/plan4res/documentation
+else
+	echo " Update documentation "
+	cd $INSTALLDIR/documentation
+	git pull
+fi
 
 echo "update environment variables and create plan4res commands"
 cd $INSTALLDIR
