@@ -192,6 +192,17 @@ echo "sourcing .bashrc $BASHRC_FILE"
 #source $BASHRC_FILE
 source ~/.bashrc
 
+if [ -d $local_dir/documentation ]; then
+	echo " Update documentation "
+	cd $local_dir/documentation
+ 	git pull
+	git clone https://github.com/plan4res/documentation
+else
+	echo " Get documentation "
+	cd $local_dir
+	git clone https://github.com/plan4res/documentation
+fi
+
 if [ -d "$local_dir/data" ]; then
 	echo "Directory $local_dir/data already exists."
 else
