@@ -79,3 +79,41 @@ Requirements:
 
           other options have the same behavior than in Linux
 
+## user_init_plan4res.sh
+This script is used when plan4res is installed in a repository and the user wants to use it from another repository
+In particular it is usefull when working on a server where plan4res is installed eg in a /softwares/ dir 
+Each user will not need to install plan4res in their local dirs. The user will only need to run the user_init_plan4res script
+
+this script will:
+- update the environment variables P4R_DIR and P4R_DIR_LOCAL:
+  - P4R_DIR is the location where plan4res is installed (ie p4r-env is in P4R_DIR)
+  - P4R_DIR_LOCAL is the location where plan4res will be ran, ie where a directory data/ will be created, for storing the different datasets
+- create the commands p4r and sp4r
+  - p4r is the command for running plan4res
+  - sp4r is the same command but for running in parallel with Slurm
+- create the data/ directory in P4R_DIR_LOCAL and create within data an example of dataset: toyDataset
+
+Requirements:
+  user_init_plan4res.sh must be located within the directory in which you want to store your datasets and run plan4res
+  plan4res must be installed
+
+### Linux
+From your terminal, type
+
+  ./user_init_plan4res.sh [-D <INSTALLDIR>] [-S <SOLVER>]
+
+        -D/--dir is mandatory
+        
+           INSTALLDIR is the directory where plan4res is installed (ie where p4r-env is located)
+
+        -S/--solver is optional, if not provided, HiGHS is chosen
+        
+           SOLVER can be: CPLEX, GUROBI, SCIP or HiGHS  (if not provided, HiGHS is chosen)
+           This is used to update the configuration files in data/toyDataset for the required solver
+
+### Windows with Vagrant
+Requirements:  same as for plan4res_install.sh
+
+- Run Git Bash
+
+- In a Git Bash terminal, type:   ./user_init_plan4res.sh [-D <INSTALLDIR>] [-S <SOLVER>]
