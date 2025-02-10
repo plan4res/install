@@ -34,7 +34,8 @@ From your terminal, type
         
             mpi can be: OpenMPI or MPICH
         
-        -U/--update is optional. It is used to force the update of one of the softwares
+        -U/--update is optional. It is used to force the update of one of the softwares; if this option is not used and these solvers
+            are already installed, they will not be updated.
         
             software can be: coin, stopt, sms++
             
