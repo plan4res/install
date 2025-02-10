@@ -4,7 +4,6 @@ INSTALLDIR=$(pwd)
 configfile="$INSTALLDIR/p4r-env/config/plan4res.conf"
 datestart=$(date +"%Y-%m-%d-%H:%M")
 log_file="$INSTALLDIR/plan4resInstall_$datestart.log"
-echo "$log_file"
 echo "Installing plan4res on $INSTALLDIR" | tee -a  "$log_file"
 echo "starting $(date +"%Y-%m-%d-%H:%M")" | tee -a  "$log_file"
 touch $log_file
@@ -28,11 +27,18 @@ p4r() {
 
 usage() {
 	echo "Usage: $0 [-S <SOLVER>] [-I <installer>] [-L <license>] [-v <version>] "
-	echo "          [-M <mpi>] [-U <software>] [-V <memory>] [-C] [-H]"
-	echo "SOLVER is : CPLEX, GUROBI, SCIP, or HiGHS"
+	echo "          [-U <software>] [-M <mpi>] [-V <memory>] [-C] [-H]"
+	echo "Option -S is mandatory, it is used to specify which solver will be installed and used in SMS++"
+	echo "       SOLVER can be : CPLEX, GUROBI, SCIP, or HiGHS"
 	echo "Option -I is used only with CPLEX and GUROBI"	
+	echo "       It is mandatory if CPLEX or GUROBI needs to be installed"	
+	echo "       installer is the linux installer file (cplex_xxx.bin or gurobiXXX.tar.gz)"	
 	echo "Option -L is used only with GUROBI"	
+	echo "       It is mandatory if GUROBI needs to be installed"	
+	echo "       license is the gurobi licence file: gurobi.lic"	
 	echo "Option -v is used only with SCIP"	
+	echo "       this is optionnal, if not provided, scip 9.2.0 will be installed"	
+	echo "       version is the SCIP version "	
 	echo "Option -U is used to force update of coin, stopt and sms++"	
 	echo "       it can be included many times"
 	echo "       software can be: coin, stopt or sms++"	
@@ -310,7 +316,6 @@ if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
 		usage
 	fi
 	if [[ $SOLVER == "CPLEX" ]]; then
-		echo "Install plan4res with CPLEX" | tee -a "$log_file"
 		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
 			echo "CPLEX installer: $INSTALLER found, copying to p4r-env" | tee -a "$log_file"
 			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
@@ -320,7 +325,6 @@ if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
 			exit 1
 		fi
 	elif [[ $SOLVER == "GUROBI" ]]; then
-		echo "Install plan4res with GUROBI" | tee -a "$log_file"
 		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
 			echo "GUROBI installer $INSTALLDIR/$INSTALLER found, copying to p4r-env" | tee -a "$log_file"
 			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
@@ -338,7 +342,6 @@ if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
 		fi
 	fi
 elif [[ ($SOLVER == "SCIP") || ($SOLVER == "HiGHS") ]]; then
-	echo "Installing plan4res with $SOLVER" | tee -a "$log_file"
 	if [ "$SOLVER" = "SCIP" ]; then
 		scip_installed
 		test=$?
@@ -378,8 +381,6 @@ if [ "$SMSPP" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
 if [ "$COIN" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
 SolverFlag+="--build-root=$INSTALLDIR/p4r-env/scripts/add-ons/.build --install-root=$INSTALLDIR/p4r-env/scripts/add-ons/install"
 
-echo "Install plan4res with $SOLVER" | tee -a "$log_file"
-
 if ! sms_installed; then
 	cd $INSTALLDIR/p4r-env
 	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/sms++ ]; then
@@ -392,11 +393,7 @@ if ! sms_installed; then
 fi
 
 echo "installing/updating sms++ "
-echo "singubind= $SINGULARITY_BIND"
-echo "p4renv=$P4R_ENV"
 cd $INSTALLDIR/p4r-env
-#if [ -f "INSTALL.sh" ]; then rm INSTALL.sh; fi
-#wget https://raw.githubusercontent.com/plan4resDev/Umbrella/plan4res/INSTALL.sh
 cp $INSTALLDIR/INSTALL.sh $INSTALLDIR/p4r-env/
 chmod a+x $INSTALLDIR/p4r-env/INSTALL.sh
 ${P4R_ENV} ./INSTALL.sh $SolverFlag
