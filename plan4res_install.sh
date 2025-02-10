@@ -462,14 +462,14 @@ if [ ! $INSTALLDIR/p4r-env/data/toyDataset ]; then
 	git clone https://github.com/plan4res/toyDataset
 fi
 
-if [ ! $INSTALLDIR/documentation ]; then
+if [ -d $INSTALLDIR/documentation ]; then
+	echo " Update documentation "
+	cd $INSTALLDIR/documentation
+	git pull	
+else
 	echo " Get documentation "
 	cd $INSTALLDIR
 	git clone https://github.com/plan4res/documentation
-else
-	echo " Update documentation "
-	cd $INSTALLDIR/documentation
-	git pull
 fi
 
 echo "update environment variables and create plan4res commands"
