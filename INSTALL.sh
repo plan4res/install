@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# version sandrine
 # ------------------------------------------------------------------------------
 # SYNOPSIS
 #     This script installs SMS++ and all its dependencies on Unix-based systems.
@@ -18,7 +17,7 @@
 # 			--install-root=<your-custom-path>  : option to specify your custom installation root
 # 			--build-root=<your-custom-path>  : option to specify your custom download and build root
 # 			--without-linux-update  # forbid update of linux packages 
-#	     	--without-scip  # do not install SCIP
+#	     	        --without-scip  # do not install SCIP
 #	   		--without-highs # do not install HiGHS
 #	   		--without-cplex # do not install CPLEX
 #	   		--without-gurobi # do not install GUROBI
@@ -443,257 +442,267 @@ build_root=""
 echo "INSTALL.sh launched with arguments: $@"
 for arg in "$@"
 do
-  case $arg in
-	--without-linux-update)  # prevents update of linux packages
-    update_linux=0
-    shift
-    ;;
-	--without-stopt-update)  # prevents update of stopt
-    update_stopt=0
-    shift
-    ;;
-	--without-coin-update)  # prevents update of stopt
-    update_coin=0
-    shift
-    ;;
-	--without-smspp-update)  # prevents update of sms++
-    update_smspp=0
-    shift
-    ;;
-    --without-cplex) # compile without cplex
-    install_cplex=0
-    shift
-    ;;	
-	--without-scip) # compile without scip
-    install_scip=0
-    shift
-    ;;
-	--without-highs) # compile without highs
-    install_highs=0
-    shift
-    ;;
-    --without-gurobi) # compile without gurobi
-    install_gurobi=0
-    shift
-    ;;
-	--without-smspp) # use only selected modules of sms++ for plan4res
-    install_smspp=0
-    shift
-    ;;
-	--without-interact) # forbid interact mode in linux
-    no_interact=0
-    shift
-    ;;
-    --install-root=*) # where to install the softwares
-    install_root="${arg#*=}"
-    shift
-    ;;
-	--build-root=*) # where to build the softwares
-    build_root="${arg#*=}"
-    shift
-    ;;
-	--cplex-installer=*)  # cplex installer file
-    cplex_installer="${arg#*=}"
-    shift
-    ;;
-	--gurobi-installer=*) # gurobi installer file
-    gurobi_installer="${arg#*=}"
-    shift
-    ;;
-	--gurobi-license=*) # gurobi license file
-    gurobi_license="${arg#*=}"
-    shift
-    ;;
-	--scip-version=*) # scip version
-    scip_version="${arg#*=}"
-    shift 
-    ;;
-    *)
-    ;;
-  esac
+	case $arg in
+		--without-linux-update)  # prevents update of linux packages
+			update_linux=0
+			shift
+			;;
+		--without-stopt-update)  # prevents update of stopt
+			update_stopt=0
+			shift
+			;;
+		--without-coin-update)  # prevents update of stopt
+			update_coin=0
+			shift
+			;;
+		--without-smspp-update)  # prevents update of sms++
+			update_smspp=0
+			shift
+			;;
+		--without-cplex) # compile without cplex
+			install_cplex=0
+			shift
+			;;	
+		--without-scip) # compile without scip
+			install_scip=0
+			shift
+			;;
+		--without-highs) # compile without highs
+			install_highs=0
+			shift
+			;;
+		--without-gurobi) # compile without gurobi
+			install_gurobi=0
+			shift
+			;;
+		--without-smspp) # use only selected modules of sms++ for plan4res
+			install_smspp=0
+			shift
+			;;
+		--without-interact) # forbid interact mode in linux
+			no_interact=0
+			shift
+			;;
+		--install-root=*) # where to install the softwares
+			install_root="${arg#*=}"
+			shift
+			;;
+		--build-root=*) # where to build the softwares
+			build_root="${arg#*=}"
+			shift
+			;;
+		--cplex-installer=*)  # cplex installer file
+			cplex_installer="${arg#*=}"
+			shift
+			;;
+		--gurobi-installer=*) # gurobi installer file
+			gurobi_installer="${arg#*=}"
+			shift
+			;;
+		--gurobi-license=*) # gurobi license file
+			gurobi_license="${arg#*=}"
+			shift
+			;;
+		--scip-version=*) # scip version
+			scip_version="${arg#*=}"
+			shift 
+			;;
+		*)
+			;;
+	esac
 done
 
 # Detect operating system and execute the appropriate installation function
 OS="$(uname)"
 case "$OS" in
-"Linux")
-  if [ -f /etc/os-release ]; then
-    . /etc/os-release
-	echo "ditribution: $ID"
-	if [ "$ID" = "ubuntu" ] || [ "$ID" = "debian" ]; then
-	  # Check if the user has sudo access
-	  # why is the 
-		if sudo -n true 2>/dev/null; then
-			HAS_SUDO=1
-			INSTALL_ROOT="${install_root:-/opt}"
-			BUILD_ROOT="${build_root:-/opt}"
-			SMSPP_ROOT="${INSTALL_ROOT}/smspp-project"
-		else
-			HAS_SUDO=0
-			INSTALL_ROOT="${install_root:-${HOME}}"
-			BUILD_ROOT="${build_root:-${HOME}}"
-			SMSPP_ROOT="${HOME}/smspp-project"  # why not ${INSTALL_ROOT}/smspp-project?
-		fi
+	"Linux")
+		if [ -f /etc/os-release ]; then
+			. /etc/os-release
+			echo "distribution: $ID"
+			if [ "$ID" = "ubuntu" ] || [ "$ID" = "debian" ]; then
+			# Check if the user has sudo access
+				if sudo -n true 2>/dev/null; then
+					HAS_SUDO=1
+					INSTALL_ROOT="${install_root:-/opt}"
+					BUILD_ROOT="${build_root:-/opt}"
+					SMSPP_ROOT="${INSTALL_ROOT}/smspp-project"
+				else
+					HAS_SUDO=0
+					INSTALL_ROOT="${install_root:-${HOME}}"
+					BUILD_ROOT="${build_root:-${HOME}}"
+					SMSPP_ROOT="${HOME}/smspp-project"  # why not ${INSTALL_ROOT}/smspp-project?
+				fi
 		
-		# create dirs if they do not exist
-		if [ ! -d $INSTALL_ROOT ]; then mkdir $INSTALL_ROOT; fi
-		if [ ! -d $BUILD_ROOT ]; then mkdir $BUILD_ROOT; fi
-		
-		# copy cplex and gurobi installers to the installation dir
-		# they need to be located in the dir where the INSTALL is launched																	
-		if [ ! "${cplex_installer}" = "" ]; then
-			if [ -f ${cplex_installer} ]; then
-				cp ${cplex_installer} $INSTALL_ROOT
-			fi
-		fi
-		if [ ! "${gurobi_installer}" = "" ]; then
-			if [ -f ${gurobi_installer} ]; then
-				cp ${gurobi_installer} $INSTALL_ROOT
-			fi
-		fi
-		if [ ! "${gurobi_license}" = "" ]; then
-			if [ -f ${gurobi_license} ]; then
-				cp ${gurobi_license} $INSTALL_ROOT
-			fi
-		fi 
+				# create dirs if they do not exist
+				if [ ! -d $INSTALL_ROOT ]; then mkdir $INSTALL_ROOT; fi
+				if [ ! -d $BUILD_ROOT ]; then mkdir $BUILD_ROOT; fi
+			
+				# copy cplex and gurobi installers to the installation dir
+				# they need to be located in the dir where the INSTALL is launched																	
+				if [ ! "${cplex_installer}" = "" ]; then
+					if [ -f ${cplex_installer} ]; then
+						cp ${cplex_installer} $INSTALL_ROOT
+					fi
+				fi
+				if [ ! "${gurobi_installer}" = "" ]; then
+					if [ -f ${gurobi_installer} ]; then
+						cp ${gurobi_installer} $INSTALL_ROOT
+					fi
+				fi
+				if [ ! "${gurobi_license}" = "" ]; then
+					if [ -f ${gurobi_license} ]; then
+						cp ${gurobi_license} $INSTALL_ROOT
+					fi
+				fi 
 
-		# I want to build and install in different dirs so I add these variables
-		# which I use insteas of SMSPP_ROOT
-		SMSPP_BUILD_ROOT="${BUILD_ROOT}/smspp-project"
-		SMSPP_INSTALL_ROOT="${INSTALL_ROOT}/sms++"
-	  install_on_linux
-	else
-	  echo "This script supports Ubuntu or Debian only."
-	  exit 1
-	fi
-  else
-    echo "This script supports Debian-based Linux distros only."
-    exit 1
-  fi
-  ;;
-"Darwin")
-  INSTALL_ROOT="${install_root:-/Library}"
-  SMSPP_ROOT="${INSTALL_ROOT}/smspp-project"
-  install_on_macos
-  ;;
-*)
-  echo "This script does not support the detected operating system."
-  exit 1
-  ;;
+				# I want to build and install in different dirs so I add these variables
+				# which I use insteas of SMSPP_ROOT
+				SMSPP_BUILD_ROOT="${BUILD_ROOT}/smspp-project"
+				SMSPP_INSTALL_ROOT="${INSTALL_ROOT}/sms++"
+				install_on_linux
+			else
+				echo "This script supports Ubuntu or Debian only."
+				exit 1
+			fi
+		else
+			echo "This script supports Debian-based Linux distros only."
+			exit 1
+		fi
+		;;
+	"Darwin")
+		INSTALL_ROOT="${install_root:-/Library}"
+		SMSPP_ROOT="${INSTALL_ROOT}/smspp-project"
+		install_on_macos
+		;;
+	*)
+		echo "This script does not support the detected operating system."
+		exit 1
+		;;
 esac
 
 # Skip compilation if running in a GitLab CI/CD Docker container
 if ! { [ -f /.dockerenv ] && [ "$CI" = "true" ]; }; then
-  # Install SMSpp
-  echo "Compiling SMSpp..."
-  SMSPP_URL=https://gitlab.com/smspp/smspp-project.git
-  smsbranch="develop"
+	# Install SMSpp
+	echo "Compiling SMS++..."
+	SMSPP_URL=https://gitlab.com/smspp/smspp-project.git
+	smsbranch="develop"
   
-  cd $BUILD_ROOT
-  # Check if the SMSpp repository already exists
-  if [ -d "$SMSPP_BUILD_ROOT" ]; then
-    cd $SMSPP_BUILD_ROOT
-    echo "SMSpp already installed. "
-	if [ $update_smspp -eq 1 ] ; then 
-		echo "Pulling latest changes..."
-		git pull 
-	fi
-  else
-    echo "Repository not found locally. Cloning SMSpp..."
-	if [ -z "$DISPLAY" ] || [ ! -t 1 ] || [ "$no_interact" -eq 1 ] ; then 
-		# clone in the BUILD_ROOT	
-		echo "clone sms++ modules for plan4res"
-		git clone --branch $smsbranch --recurse-submodules $SMSPP_URL "$SMSPP_BUILD_ROOT"
+	cd $BUILD_ROOT
+	# Check if the SMSpp repository already exists
+	if [ -d "$SMSPP_BUILD_ROOT" ]; then
 		cd $SMSPP_BUILD_ROOT
-		# force submodules to checkout in the requested branch
-		git submodule foreach --recursive "if git show-ref --verify --quiet refs/remotes/origin/$smsbranch ; then git checkout $smsbranch ; else git checkout master; fi"
+		echo "SMS++ already installed. "
+		if [ $update_smspp -eq 1 ] ; then 
+			echo "Pulling latest changes..."
+			git pull origin $smsbranch
+			git submodule foreach --recursive "if git show-ref --verify --quiet refs/remotes/origin/$smsbranch ; then git pull origin $smsbranch ; else git pull origin master; fi"
+		fi
 	else
-		echo "clone full sms++"
-		git clone --branch $smsbranch $SMSPP_URL "$SMSPP_BUILD_ROOT"
+		echo "Repository not found locally. Cloning SMS++..."
+		if [ -z "$DISPLAY" ] || [ ! -t 1 ] || [ "$no_interact" -eq 1 ] ; then 
+			# clone in the BUILD_ROOT	
+			echo "clone sms++ modules for plan4res"
+			git clone --branch $smsbranch --recurse-submodules $SMSPP_URL "$SMSPP_BUILD_ROOT"
+			cd $SMSPP_BUILD_ROOT
+			# force submodules to checkout in the requested branch
+			git submodule foreach --recursive "if git show-ref --verify --quiet refs/remotes/origin/$smsbranch ; then git checkout $smsbranch ; else git checkout master; fi"
+		else
+			echo "clone full sms++"
+			git clone --branch $smsbranch $SMSPP_URL "$SMSPP_BUILD_ROOT"
+		fi
 	fi
-  fi
-  cd $SMSPP_BUILD_ROOT
+	cd $SMSPP_BUILD_ROOT
 
-  # If the installation root is not the default one, update the makefile-paths
-  echo "build in $SMSPP_BUILD_ROOT and install in $SMSPP_INSTALL_ROOT"
-  # GUROBI_ROOT has changed and it can be found out of GUROBI_HOME which is an env var even if Gurobi was not installed just now
-  GUROBI_ROOT=$(echo $GUROBI_HOME | sed 's/\/linux64$//')
-  if [[ ("$OS" == "Linux" && "$INSTALL_ROOT" != "/opt") ||
+	# If the installation root is not the default one, update the makefile-paths
+	echo "build in $SMSPP_BUILD_ROOT and install in $SMSPP_INSTALL_ROOT"
+	# GUROBI_ROOT has changed and it can be found out of GUROBI_HOME which is an env var even if Gurobi was not installed just now
+	if [ ! -z $GUROBI_HOME ]; then GUROBI_ROOT=$(echo $GUROBI_HOME | sed 's/\/linux64$//') ; fi
+	if [[ ("$OS" == "Linux" && "$INSTALL_ROOT" != "/opt") ||
         ("$OS" == "Darwin" && "$INSTALL_ROOT" != "/Library") ]]; then
-    umbrella_extlib_file="$SMSPP_BUILD_ROOT/extlib/makefile-paths"
-    # Create the file with the new paths of the resources for the umbrella
-    {
-      echo "CPLEX_ROOT = ${CPLEX_ROOT}"
-      echo "SCIP_ROOT = ${SCIP_ROOT}"
-      echo "GUROBI_ROOT = ${GUROBI_ROOT}"
-      echo "HiGHS_ROOT = ${HiGHS_ROOT}"
-      echo "StOpt_ROOT = ${StOpt_ROOT}"
-      echo "CoinUtils_ROOT = ${CoinOr_ROOT}"
-      echo "Osi_ROOT = ${CoinOr_ROOT}"
-      echo "Clp_ROOT = ${CoinOr_ROOT}"
-    } > "$umbrella_extlib_file"
-    echo "Created $umbrella_extlib_file file."
+		umbrella_extlib_file="$SMSPP_BUILD_ROOT/extlib/makefile-paths"
+		# Create the file with the new paths of the resources for the umbrella
+		{
+			echo "CPLEX_ROOT = ${CPLEX_ROOT}"
+			echo "SCIP_ROOT = ${SCIP_ROOT}"
+			echo "GUROBI_ROOT = ${GUROBI_ROOT}"
+			echo "HiGHS_ROOT = ${HiGHS_ROOT}"
+			echo "StOpt_ROOT = ${StOpt_ROOT}"
+			echo "CoinUtils_ROOT = ${CoinOr_ROOT}"
+			echo "Osi_ROOT = ${CoinOr_ROOT}"
+			echo "Clp_ROOT = ${CoinOr_ROOT}"
+		} > "$umbrella_extlib_file"
+		echo "Created $umbrella_extlib_file file."
 
-    # If the submodule BundleSolver is initialized, i.e., the folder is not empty
-    if [ -d "$SMSPP_BUILD_ROOT/BundleSolver" ] && [ -n "$(ls -A "$SMSPP_BUILD_ROOT/BundleSolver")" ]; then
-      ndofi_extlib_file="$SMSPP_BUILD_ROOT/BundleSolver/NdoFiOracle/extlib/makefile-paths"
-      # Create the file with the new paths of the resources for BundleSolver/NdoFiOracle
-      {
-        echo "CPLEX_ROOT = ${CPLEX_ROOT}"
-        echo "GUROBI_ROOT = ${GUROBI_ROOT}"
-        echo "CoinUtils_ROOT = ${CoinOr_ROOT}"
-        echo "Osi_ROOT = ${CoinOr_ROOT}"
-        echo "Clp_ROOT = ${CoinOr_ROOT}"
-      } > "$ndofi_extlib_file"
-      echo "Created $ndofi_extlib_file file."
-    fi
+		# If the submodule BundleSolver is initialized, i.e., the folder is not empty
+		if [ -d "$SMSPP_BUILD_ROOT/BundleSolver" ] && [ -n "$(ls -A "$SMSPP_BUILD_ROOT/BundleSolver")" ]; then
+			ndofi_extlib_file="$SMSPP_BUILD_ROOT/BundleSolver/NdoFiOracle/extlib/makefile-paths"
+			# Create the file with the new paths of the resources for BundleSolver/NdoFiOracle
+			{
+				echo "CPLEX_ROOT = ${CPLEX_ROOT}"
+				echo "GUROBI_ROOT = ${GUROBI_ROOT}"
+				echo "CoinUtils_ROOT = ${CoinOr_ROOT}"
+				echo "Osi_ROOT = ${CoinOr_ROOT}"
+				echo "Clp_ROOT = ${CoinOr_ROOT}"
+			} > "$ndofi_extlib_file"
+			echo "Created $ndofi_extlib_file file."
+		fi
 
-    # If the submodule MCFBlock is initialized, i.e., the folder is not empty
-    if [ -d "$SMSPP_BUILD_ROOT/MCFBlock" ] && [ -n "$(ls -A "$SMSPP_BUILD_ROOT/MCFBlock")" ]; then
-      mcf_extlib_file="$SMSPP_BUILD_ROOT/MCFBlock/MCFClass/extlib/makefile-paths"
-      # Create the file with the new paths of the resources for the MCFBlock/MCFClass
-      {
-        echo "CPLEX_ROOT = ${CPLEX_ROOT}"
-      } > "$mcf_extlib_file"
-      echo "Created $mcf_extlib_file file."
-    fi
-  fi
+		# If the submodule MCFBlock is initialized, i.e., the folder is not empty
+		if [ -d "$SMSPP_BUILD_ROOT/MCFBlock" ] && [ -n "$(ls -A "$SMSPP_BUILD_ROOT/MCFBlock")" ]; then
+			mcf_extlib_file="$SMSPP_BUILD_ROOT/MCFBlock/MCFClass/extlib/makefile-paths"
+			# Create the file with the new paths of the resources for the MCFBlock/MCFClass
+			{
+				echo "CPLEX_ROOT = ${CPLEX_ROOT}"
+			} > "$mcf_extlib_file"
+			echo "Created $mcf_extlib_file file."
+		fi
+	fi
 
-  # Build SMSpp
-  cd $SMSPP_BUILD_ROOT
-  if [ -z "$DISPLAY" ] || [ ! -t 1 ] || [ "$no_interact" -eq 0 ]; then
-	  # need to add flags for eigen and boost as I cannot install them with apt-get																				
-	  CMAKEFLAGS="-DCMAKE_INSTALL_PREFIX=${SMSPP_INSTALL_ROOT} 
-		-Wno-dev \
-		-DBOOST_ROOT=${BOOST_PATH} \
-		-DEigen3_ROOT=${EIGEN_PATH}/share/eigen3/cmake \
-		-DStOpt_ROOT=${StOpt_ROOT} \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DBUILD_InvestmentBlock=ON \
-		-DBUILD_tools=ON \
-		-DBUILD_LagrangianDualSolver=ON \
-		-DBUILD_BundleSolver=ON \
-		-DBUILD_MILPSolver=ON "
-	cmake -S . -B build $CMAKEFLAGS
-	cmake --build build
-	# compile in BUILD_ROOT, install in INSTALL_ROOT
-	cmake --install build --prefix ${SMSPP_INSTALL_ROOT}
-  else
-	# run ccmake in a xterm subshell to allow interaction
-    xterm -e ccmake build & # select submodules, then Configure and Generate the build files
-    wait $! # wait for ccmake to finish
-    CCMAKE_EXIT_CODE=$?
-    if [ $CCMAKE_EXIT_CODE -eq 0 ]; then
-      cmake --build build
-      cmake --install build
-      #cd build
-      #ctest -V
-      #cd "$SMSPP_ROOT"
-    else
-      echo "ccmake fails with exit code $CCMAKE_EXIT_CODE."
-      exit 1
-    fi
-  fi
-  
-
+	# Build SMSpp
+	cd $SMSPP_BUILD_ROOT
+	if [ -z "$DISPLAY" ] || [ ! -t 1 ] || [ "$no_interact" -eq 0 ]; then
+		# need to add flags for eigen and boost as I cannot install them with apt-get																				
+		CMAKEFLAGS="-DCMAKE_INSTALL_PREFIX=${SMSPP_INSTALL_ROOT} 
+			-Wno-dev \
+			-DBOOST_ROOT=${BOOST_PATH} \
+			-DEigen3_ROOT=${EIGEN_PATH}/share/eigen3/cmake \
+			-DStOpt_ROOT=${StOpt_ROOT} \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DBUILD_InvestmentBlock=ON \
+			-DBUILD_tools=ON \
+			-DBUILD_LagrangianDualSolver=ON \
+			-DBUILD_BundleSolver=ON \
+			-DBUILD_MILPSolver=ON "
+	
+		# choose OSi_QP version depending on solvers installed
+		if [ -d "$CPLEX_ROOT" ]; then
+			echo "repo $CPLEX_ROOT exists, building with CPLEX"
+			# if cplex is installed, choose Cplex
+			CMAKEFLAGS+="-DWHICH_OSI_QP=1"
+		elif [ ! -z $GUROBI_HOME ] && [ -d "$GUROBI_ROOT/$GRBDIR" ]; then
+			echo "repo $GUROBI_ROOT/$GRBDIR exists, building with GUROBI"
+			# if cplex not there but gurobi installed, choose gurobi
+			CMAKEFLAGS+="-DWHICH_OSI_QP=2"
+		else
+			# if none of cplex or gurobi is there use Clp
+			CMAKEFLAGS+="-DWHICH_OSI_QP=0 -DWHICH_OSI_MP=0"
+		fi
+		echo "CMAKEFLAGS=$CMAKEFLAGS"
+		cmake -S . -B build $CMAKEFLAGS
+		cmake --build build
+		# compile in BUILD_ROOT, install in INSTALL_ROOT
+		cmake --install build --prefix ${SMSPP_INSTALL_ROOT}
+	else
+		# run ccmake in a xterm subshell to allow interaction
+		xterm -e ccmake build & # select submodules, then Configure and Generate the build files
+		wait $! # wait for ccmake to finish
+		CCMAKE_EXIT_CODE=$?
+		if [ $CCMAKE_EXIT_CODE -eq 0 ]; then
+			cmake --build build
+			cmake --install build
+		else
+			echo "ccmake fails with exit code $CCMAKE_EXIT_CODE."
+			exit 1
+		fi
+	fi
 fi
