@@ -456,12 +456,6 @@ cd $INSTALLDIR/p4r-env/scripts/include
 chmod a+x *.sh
 cd $INSTALLDIR
 
-if [ ! $INSTALLDIR/p4r-env/data/toyDataset ]; then
-	echo " Create example dataset toyDataset "
-	cd $INSTALLDIR/p4r-env/data/data
-	git clone https://github.com/plan4res/toyDataset
-fi
-
 if [ -d $INSTALLDIR/documentation ]; then
 	echo " Update documentation "
 	cd $INSTALLDIR/documentation
@@ -478,7 +472,7 @@ if [ -f user_init_plan4res.sh ]; then
 	chmod a+x user_init_plan4res.sh
 	./user_init_plan4res.sh "$INSTALLDIR"
 else
-	echo "the scipt user_init_plan4res.sh is not present in $INSTALLDIR"
+	echo "the script user_init_plan4res.sh is not present in $INSTALLDIR"
 	echo "You need to move to the location where you want to store your data"
 	echo "and run ./user_init_plan4res.sh <INSTALLDIR>"
 	echo "<INSTALLDIR> is the location where you ran plan4res_install.sh"
