@@ -10,7 +10,7 @@ Requirements:
 ### Linux
 From your terminal, type
 
-  ./plan4res_install.sh [-S <SOLVER>] [-I <installer>] [-L <license>] [-v <version>] [-M <mpi>] [-U <software>] [-C] [-H]
+  ./plan4res_install.sh [-S \<SOLVER\>] [-I \<installer\>] [-L \<license\>] [-v \<version\>] [-M \<mpi\>] [-U \<software\>] [-C] [-H]
 
         -S/--solver is optional, if not provided, HiGHS is chosen
         
