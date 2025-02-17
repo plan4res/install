@@ -84,7 +84,7 @@ install_on_linux() {
 	echo "Starting the installation process on Linux..."
    
    # update linux packages only if user has sudo AND it is requested by user
-	if [[ "$HAS_SUDO" -eq 1 && "$update_linux" -eq 1 ]]; then
+	if [[ "$HAS_SUDO" = "1" && "$update_linux" = "1" ]]; then
 		# Update packages and install basic requirements
 		echo "Updating system and installing basic requirements..."
 		apt-get update -q
