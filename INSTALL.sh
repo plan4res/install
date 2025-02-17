@@ -17,7 +17,7 @@
 # 			--install-root=<your-custom-path>  : option to specify your custom installation root
 # 			--build-root=<your-custom-path>  : option to specify your custom download and build root
 # 			--without-linux-update  # forbid update of linux packages 
-#	     	        --without-scip  # do not install SCIP
+#	     	--without-scip  # do not install SCIP
 #	   		--without-highs # do not install HiGHS
 #	   		--without-cplex # do not install CPLEX
 #	   		--without-gurobi # do not install GUROBI
@@ -30,6 +30,11 @@
 #			--gurobi-installer=<your-gurobi-installer>  # allows user to pass his own gurobi installer and prevent download
 #			--gurobi-license=<your-gurobi-installer> # allows user to pass his own gurobi licence with the installer
 #			--scip-version=<scip-version> # allows user to choose the version of SCIP
+#			--cplex-root=<your cplex install rool> # if cplex is already installed somewhere, you can specify it
+#			--gurobi-root=<your gurobi install rool> # if gurobi is already installed somewhere, you can specify it
+#			--scip-root=<your scip install rool> # if scip is already installed somewhere, you can specify it
+#			--highs-root=<your highs install rool> # if highs is already installed somewhere, you can specify it
+#			--coin-root=<your coin install rool> # if coin is already installed somewhere, you can specify it
 #
 # AUTHOR
 #     Donato Meoli, Sandrine Charousset
@@ -104,7 +109,7 @@ install_on_linux() {
 	
 	# Install CPLEX
 	#CPLEX_ROOT="${INSTALL_ROOT}/ibm/ILOG/CPLEX_Studio"
-	CPLEX_ROOT="${INSTALL_ROOT}/cplex"
+	if [ "${CPLEX_ROOT}"="" ]; then CPLEX_ROOT="${INSTALL_ROOT}/cplex"; fi
 	# only install if requested and not yet installed
 	if [ "$install_cplex" -eq 1 ] && [ ! -d $CPLEX_ROOT ]; then
 		echo "Installing CPLEX..."
@@ -186,13 +191,13 @@ EOL
 
 	# Install Gurobi
 	# if the user passes his own installer then this version is used instead of 10.0
-	GUROBI_ROOT="${INSTALL_ROOT}/gurobi"
+	if [ "${GUROBI_ROOT}"="" ]; then GUROBI_ROOT="${INSTALL_ROOT}/gurobi" ; fi
 	if [ "$install_gurobi" -eq 1 ]; then							 
 		if [ ! "$gurobi_installer" = "" ]; then
 			GUROBI_INSTALLER=$gurobi_installer
 			GRBDIR=$(tar tzf "$GUROBI_INSTALLER" | head -1 | cut -f1 -d"/")
 		elif [ -d "$GUROBI_ROOT" ]; then
-			for file in ${INSTALL_ROOT}/gurobi/*/ ; do 
+			for file in ${GUROBI_ROOT}/*/ ; do 
 				if [[ -d "$file" && ! -L "$file" ]]; then
 					grb="${file%/}" 
 					grb="${grb##*/}"
@@ -210,7 +215,7 @@ EOL
 	if [ "$install_gurobi" -eq 1 ] && [ ! -d "$GUROBI_ROOT/$GRBDIR" ]; then
 		echo "Installing Gurobi..."					 
         cd "$INSTALL_ROOT"
-		if [ ! -d ${INSTALL_ROOT}/gurobi ]; then mkdir ${INSTALL_ROOT}/gurobi ; fi
+		if [ ! -d ${GUROBI_ROOT} ]; then mkdir ${IGUROBI_ROOT} ; fi
 		if [ "$gurobi_installer" = "" ]; then
 			curl -O "https://packages.gurobi.com/10.0/$GUROBI_INSTALLER"
 			tar -xvf "$GUROBI_INSTALLER"
@@ -246,7 +251,7 @@ EOL
 
 	# Install SCIP
 	echo "Installing SCIP...  "
-	SCIP_ROOT="${INSTALL_ROOT}/scip"
+	if  [ "${SCIP_ROOT}" = "" ]; then SCIP_ROOT="${INSTALL_ROOT}/scip" ; fi
 	SCIP_BUILD_ROOT="${BUILD_ROOT}/scip"
 	# install only if requested and not already installed
 	if [ "$install_scip" -eq 1 ] &&  [ ! -d $SCIP_ROOT ]; then
@@ -278,7 +283,7 @@ EOL
 	# Install HiGHS
 	# install only if requested and not already installed
 	echo "Installing HiGHS......  "
-	HiGHS_ROOT="${INSTALL_ROOT}/HiGHS"
+	if  [ "${HiGHS_ROOT}" = "" ]; then HiGHS_ROOT="${INSTALL_ROOT}/HiGHS"; fi
 	HiGHS_BUILD_ROOT="${BUILD_ROOT}/HiGHS"
 	if [ "$install_highs" -eq 1 ] && [ ! -d $HiGHS_ROOT ]; then
 		cd "$BUILD_ROOT"
@@ -304,7 +309,7 @@ EOL
 	if [[ "$HAS_SUDO" -eq 1 && "$update_linux" -eq 1 ]]; then
 		apt-get install -y -q coinor-libcoinutils-dev libbz2-dev liblapack-dev libopenblas-dev
 	fi
-	CoinOr_ROOT="${INSTALL_ROOT}/coin-or"
+	if  [ "${CoinOr_ROOT}" = "" ]; then CoinOr_ROOT="${INSTALL_ROOT}/coin-or" ; fi
 	CoinOr_BUILD_ROOT="${BUILD_ROOT}/coin-or"
 	# install only if not already installed
 	# to be added "update coin"
@@ -392,7 +397,6 @@ EOL
 			# if the repository is not up to date
 			if [ "$LOCAL" != "$REMOTE" ]; then
 				git pull
-				#mv ./doc "${INSTALL_ROOT}" # TODO remove when the doc bug in StOpt will be fixed
 				# with debian:bullseye the versions of boost and eigen are not good so we
 				# must install with wget/make and thus pass additionnal flags to stopt
 				cmake -S . -B build \
@@ -403,7 +407,6 @@ EOL
 				  -DEIGEN3_INCLUDE_DIR=${EIGEN_PATH}/include/eigen3
 				cmake --build build --prefix "$StOpt_ROOT"
 				cmake --install build
-				#mv "${INSTALL_ROOT}/doc" StOpt_ROOT # TODO remove when the doc bug in StOpt will be fixed
 			else
 				echo "StOpt already up to date."
 			fi
@@ -506,6 +509,26 @@ do
 		--scip-version=*) # scip version
 			scip_version="${arg#*=}"
 			shift 
+			;;
+		--cplex-root=*) # where cplex is already installed
+			CPLEX_ROOT="${arg#*=}"
+			shift
+			;;
+		--gurobi-root=*) # where cplex is already installed
+			GUROBI_ROOT="${arg#*=}"
+			shift
+			;;
+		--scip-root=*) # where cplex is already installed
+			SCIP_ROOT="${arg#*=}"
+			shift
+			;;
+		--highs-root=*) # where cplex is already installed
+			HIGHS_ROOT="${arg#*=}"
+			shift
+			;;
+		--coin-root=*) # where cplex is already installed
+			COIN_ROOT="${arg#*=}"
+			shift
 			;;
 		*)
 			;;
