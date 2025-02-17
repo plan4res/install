@@ -439,14 +439,14 @@ elif [[ ($SOLVER == "SCIP") || ($SOLVER == "HiGHS") ]]; then
 		echo "Warning : option -I $INSTALLER is ignored for $SOLVER." | tee -a "$log_file"
 	fi
 fi
-
+if [ "$WITHOUT_P4R_ENV" = "0"  ]; then SolverFlag+="--without-linux-update "; fi
 SolverFlag+="--without-smspp --without-interact "
 if [ "${STOPT_UPDATE}" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
 if [ "${SMSPP_UPDATE}" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
 if [ "${COIN_UPDATE}" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
 SolverFlag+="--build-root=$INSTALLDIR/p4r-env/scripts/add-ons/.build --install-root=$INSTALLDIR/p4r-env/scripts/add-ons/install"
 
-if [ "$WITHOUT_P4R_ENV" = "0"  ]; then SolverFlag+="--without-linux-update "; fi
+
 
 # if cplex update requested, remove cplex install dir
 if [ "${CPLEX_UPDATE}" = "1" ]; then
