@@ -46,7 +46,11 @@ usage() {
 	echo "       mpi is the MPI version: MPICH or OpenMPI"
 	echo "Option -V means that the install is done on Windows with Vagrant"
 	echo "       memory is the memory to be used by Vagrant (eg. 8192), it must be a multiple of 1024 "
-	echo "Option -C means that everything will be uninstalled"	
+	echo "Option -C means that everything will be uninstalled"
+	echo "Option -B means that the build directory, where the source code is downloaded"
+	echo "       and the compilation done, is not deleted after install "
+	echo "Option -X means that the install will be done without the p4r-env environment"
+	echo "       it means that all dependencies must be installed first "
 	echo "Option -H prints this help"
 	exit 0
 }
@@ -162,10 +166,17 @@ INSTALLER=""
 LICENSE=""
 VAGRANT=""
 MPI="OpenMPI"
-STOPT=0
-SMSPP=0
-COIN=0
+STOPT_UPDATE=0
+SMSPP_UPDATE=0
+COIN_UPDATE=0
+P4RENV_UPDATE=0
+CPLEX_UPDATE=0
+GUROBI_UPDATE=0
+SCIP_UPDATE=0
+HiGHS_UPDATE=0
 version="9.2.0"
+WITHOUT_P4R_ENV=0
+KEEP_BUILD=0
 
 # treat arguments
 while [[ "$#" -gt 0 ]]; do
@@ -223,11 +234,24 @@ while [[ "$#" -gt 0 ]]; do
 		-U|--update)
 			test_option $1 $2
 			what=$2
-			if [ "$what" = "stopt" ]; then STOPT=1 ; fi
-			if [ "$what" = "sms++" ]; then SMSPP=1 ; fi
-			if [ "$what" = "coin" ]; then COIN=1 ; fi
+			if [ "$what" = "stopt" ]; then STOPT_UPDATE=1 ; fi
+			if [ "$what" = "sms++" ]; then SMSPP_UPDATE=1 ; fi
+			if [ "$what" = "coin" ]; then COIN_UPDATE=1 ; fi
+			if [ "$what" = "p4r-env" ]; then P4RENV_UPDATE=1 ; fi
+			if [ "$what" = "CPLEX" ]; then CPLEX_UPDATE=1 ; fi
+			if [ "$what" = "GUROBI" ]; then GUROBI_UPDATE=1 ; fi
+			if [ "$what" = "SCIP" ]; then SCIP_UPDATE=1 ; fi
+			if [ "$what" = "HiGHS" ]; then HiGHS_UPDATE=1 ; fi
 			shift 2 
 			;;
+		-X|--withoutp4renv)
+			WITHOUT_P4R_ENV=1
+			shift
+			;;
+		-B|--keepbuild)
+			KEEP_BUILD=1
+			shift
+			;;			
 		*) 
 			echo "unknown option $1" | tee -a "$log_file"
 			usage 
@@ -236,62 +260,89 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # install p4r-env
-export P4R_ENV=$INSTALLDIR/p4r-env/bin/p4r
-export SINGULARITY_BIND=$INSTALLDIR/p4r-env
-if p4r_env_installed; then
-	echo "p4r-env already installed" | tee -a "$log_file"
-else
-	echo "installing p4r-env" | tee -a "$log_file"
-	if [[ -d $INSTALLDIR/p4r-env ]]; then 
-		echo "p4r-env exists, removing...." >> "$log_file"
-		rm -rf $INSTALLDIR/p4r-env 
-		echo "p4r-env removed...." >> "$log_file"
-	fi
-	echo "cloning p4r-env...." >> "$log_file"
-	git clone --recursive https://github.com/plan4res/p4r-env | tee -a $log_file
-	wait
-	echo "p4r-env cloned" >> "$log_file"
+if [ "${WITHOUT_P4R_ENV}" = "0" ]; then
+	export P4R_ENV=$INSTALLDIR/p4r-env/bin/p4r
 	export SINGULARITY_BIND=$INSTALLDIR/p4r-env
-	cd $INSTALLDIR/p4r-env
-	if [ "$VAGRANT" = "VAGRANT" ]; then
-		echo "Install plan4res with VAGRANT, requested memory: $MEMORY" | tee -a "$log_file"
-		if [[ -n $MEMORY ]]; then
-			if ! [[ $MEMORY =~ ^[0-9]+$ ]]; then
-				echo "Error : Option -V <memory> must be an integer, multiple of 1024." | tee -a "$log_file"
-				exit 1
-			fi
-			if (( MEMORY % 1024 != 0 )); then
-				echo "Error : Option -V <memory> must be a multiple of 1024." | tee -a "$log_file"
-				exit 1
-			fi
+	if p4r_env_installed; then
+		echo "p4r-env already installed" | tee -a "$log_file"
+		if [ "${P4RENV_UPDATE}" = "1" ]; then
+			echo "updating p4r-env" | tee -a "$log_file"
+			cd $INSTALLDIR/p4r-env
+			git pull
+			# edit config/plan4res.conf to allow download of sif image 
+			echo "Updating $configfile to allow download of SIF image" >> "$log_file"
+			sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=1/ s/^/#/' "$configfile"	
+			sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=0/ s/^#//' "$configfile"  
+			grep -qxF 'P4R_SINGULARITY_IMAGE_PRESERVE=0' "$configfile" || echo 'P4R_SINGULARITY_IMAGE_PRESERVE=1' >> "$configfile" 
+			echo "$configfile updated" >> "$log_file"
+			echo "updating p4r-env SIF image" | tee -a "$log_file"
+			p4r
+			echo "p4r-env SIF image updated" | tee -a "$log_file"
+			# edit config/plan4res.conf to prevent download of sif image at each bin/p4r launch
+			echo "Updating $configfile to prevent download of SIF image" >> "$log_file"
+			sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=0/ s/^/#/' "$configfile"	
+			sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=1/ s/^#//' "$configfile"  
+			grep -qxF 'P4R_SINGULARITY_IMAGE_PRESERVE=1' "$configfile" || echo 'P4R_SINGULARITY_IMAGE_PRESERVE=1' >> "$configfile" 
+			echo "$configfile updated" >> "$log_file"
 		fi
-		echo "installing with Vagrant" | tee -a "$log_file"
-		vagrantfile="$INSTALLDIR/p4r-env/Vagrantfile"
-		sed -i 's/vb.memory = "[0-9]\+"/vb.memory = "'"$MEMORY"'"/' "$vagrantfile"
-		echo "Vagrantfile updated, memory requested: $MEMORY" | tee -a "$log_file"
-		echo "installing vagrant-proxyconf" | tee -a "$log_file"
-		vagrant plugin install vagrant-proxyconf
+	else
+		echo "installing p4r-env" | tee -a "$log_file"
+		if [[ -d $INSTALLDIR/p4r-env ]]; then 
+			echo "p4r-env exists, removing...." >> "$log_file"
+			rm -rf $INSTALLDIR/p4r-env 
+			echo "p4r-env removed...." >> "$log_file"
+		fi
+		echo "cloning p4r-env...." >> "$log_file"
+		git clone --recursive https://github.com/plan4res/p4r-env | tee -a $log_file
 		wait
-		echo "vagrant-proxyconf installed, starting Vagrant Virtual Machine" | tee -a "$log_file"
-		vagrant up 
-		echo "VM started" | tee -a "$log_file"
-	fi
-	git config submodule.recurse true
-	echo "downloading p4r-env SIF image" | tee -a "$log_file"
-	p4r
-	echo "p4r-env SIF image downloaded" | tee -a "$log_file"
+		echo "p4r-env cloned" >> "$log_file"
+		export SINGULARITY_BIND=$INSTALLDIR/p4r-env
+		cd $INSTALLDIR/p4r-env
+		if [ "$VAGRANT" = "VAGRANT" ]; then
+			echo "Install plan4res with VAGRANT, requested memory: $MEMORY" | tee -a "$log_file"
+			if [[ -n $MEMORY ]]; then
+				if ! [[ $MEMORY =~ ^[0-9]+$ ]]; then
+					echo "Error : Option -V <memory> must be an integer, multiple of 1024." | tee -a "$log_file"
+					exit 1
+				fi
+				if (( MEMORY % 1024 != 0 )); then
+					echo "Error : Option -V <memory> must be a multiple of 1024." | tee -a "$log_file"
+					exit 1
+				fi
+			fi
+			echo "installing with Vagrant" | tee -a "$log_file"
+			vagrantfile="$INSTALLDIR/p4r-env/Vagrantfile"
+			sed -i 's/vb.memory = "[0-9]\+"/vb.memory = "'"$MEMORY"'"/' "$vagrantfile"
+			echo "Vagrantfile updated, memory requested: $MEMORY" | tee -a "$log_file"
+			echo "installing vagrant-proxyconf" | tee -a "$log_file"
+			vagrant plugin install vagrant-proxyconf
+			wait
+			echo "vagrant-proxyconf installed, starting Vagrant Virtual Machine" | tee -a "$log_file"
+			vagrant up 
+			echo "VM started" | tee -a "$log_file"
+		fi
+		git config submodule.recurse true
+		echo "downloading p4r-env SIF image" | tee -a "$log_file"
+		p4r
+		echo "p4r-env SIF image downloaded" | tee -a "$log_file"
 
-	# edit config/plan4res.conf to prevent download of sif image at each bin/p4r launch
-	# comment row P4R_SINGULARITY_IMAGE_PRESERVE=0
-	# uncomment row P4R_SINGULARITY_IMAGE_PRESERVE=1
-	# add row P4R_SINGULARITY_IMAGE_PRESERVE=1 if not present
-	echo "Updating $configfile to prevent download of SIF image" >> "$log_file"
-	sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=0/ s/^/#/' "$configfile"	
-	sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=1/ s/^#//' "$configfile"  
-	grep -qxF 'P4R_SINGULARITY_IMAGE_PRESERVE=1' "$configfile" || echo 'P4R_SINGULARITY_IMAGE_PRESERVE=1' >> "$configfile" 
-	echo "$configfile updated" >> "$log_file"
-	cd $INSTALLDIR
-	echo "p4r-env successfully installed" | tee -a "$log_file"
+		# edit config/plan4res.conf to prevent download of sif image at each bin/p4r launch
+		# comment row P4R_SINGULARITY_IMAGE_PRESERVE=0
+		# uncomment row P4R_SINGULARITY_IMAGE_PRESERVE=1
+		# add row P4R_SINGULARITY_IMAGE_PRESERVE=1 if not present
+		echo "Updating $configfile to prevent download of SIF image" >> "$log_file"
+		sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=0/ s/^/#/' "$configfile"	
+		sed -i '/P4R_SINGULARITY_IMAGE_PRESERVE=1/ s/^#//' "$configfile"  
+		grep -qxF 'P4R_SINGULARITY_IMAGE_PRESERVE=1' "$configfile" || echo 'P4R_SINGULARITY_IMAGE_PRESERVE=1' >> "$configfile" 
+		echo "$configfile updated" >> "$log_file"
+		cd $INSTALLDIR
+		echo "p4r-env successfully installed" | tee -a "$log_file"
+	fi
+else
+	echo "Install without p4r-env" | tee -a "$log_file"
+	if [ ! -d $INSTALLDIR/p4r-env ] ; then mkdir $INSTALLDIR/p4r-env ; fi
+	if [ ! -d $INSTALLDIR/p4r-env/add-ons ] ; then mkdir $INSTALLDIR/p4r-env/add-ons ; fi
+	if [ ! -d $INSTALLDIR/p4r-env/scripts ] ; then mkdir $INSTALLDIR/p4r-env/scripts ; fi
 fi
 
 # check SOLVER
@@ -302,7 +353,6 @@ fi
 
 SolverFlag=""
 # Check installer 
-	
 if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
 	if [[ -z $INSTALLER ]]; then
 		echo "Error : Option -L <INSTALLER> is mandatory for $SOLVER." | tee -a "$log_file"
@@ -375,11 +425,41 @@ fi
 if [ "$SOLVER" != "HiGHS" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS ]; then
 	SolverFlag+="--without-highs "
 fi
-SolverFlag+="--without-linux-update --without-smspp --without-interact "
-if [ "$STOPT" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
-if [ "$SMSPP" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
-if [ "$COIN" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
+SolverFlag+="--without-smspp --without-interact "
+if [ "${STOPT_UPDATE}" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
+if [ "${SMSPP_UPDATE}" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
+if [ "${COIN_UPDATE}" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
 SolverFlag+="--build-root=$INSTALLDIR/p4r-env/scripts/add-ons/.build --install-root=$INSTALLDIR/p4r-env/scripts/add-ons/install"
+
+if [ "$WITHOUT_P4R_ENV" = "0"  ]; then SolverFlag+="--without-linux-update "; fi
+
+# if cplex update requested, remove cplex install dir
+if [ "${CPLEX_UPDATE}" = "1" ]; then
+	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/cplex ]; then
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/cplex
+	fi
+fi
+
+# if gurobi update requested, remove gurobi install dir
+if [ "${GUROBI_UPDATE}" = "1" ]; then
+	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/gurobi ]; then
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/gurobi
+	fi
+fi
+
+# if cplex update requested, remove cplex install dir
+if [ "${HiGHS_UPDATE}" = "1" ]; then
+	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS ]; then
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS
+	fi
+fi
+
+# if cplex update requested, remove cplex install dir
+if [ "${SCIP_UPDATE}" = "1" ]; then
+	if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/install/scip ]; then
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/scip
+	fi
+fi
 
 if ! sms_installed; then
 	cd $INSTALLDIR/p4r-env
@@ -387,6 +467,9 @@ if ! sms_installed; then
 		echo "sms++ is present in $INSTALLDIR but not correctly installed" | tee -a "$log_file"
 		echo "removing sms++" | tee -a "$log_file"
 		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/install/sms++ | tee -a "$log_file"
+		if [ -d $INSTALLDIR/p4r-env/scripts/add-ons/.build/smspp-project ]; then
+			rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/.build/smspp-project | tee -a "$log_file"
+		fi
 		wait
 		echo "sms++ successfully uninstalled" | tee -a "$log_file"
 	fi
@@ -396,11 +479,19 @@ echo "installing/updating sms++ "
 cd $INSTALLDIR/p4r-env
 cp $INSTALLDIR/INSTALL.sh $INSTALLDIR/p4r-env/
 chmod a+x $INSTALLDIR/p4r-env/INSTALL.sh
-${P4R_ENV} ./INSTALL.sh $SolverFlag
-wait
+if [ "${WITHOUT_P4R_ENV}" = "0" ]; then
+	${P4R_ENV} ./INSTALL.sh $SolverFlag
+	wait
+else
+	./INSTALL.sh $SolverFlag
+	wait
+fi
 cd $INSTALLDIR
 if sms_installed; then
 	echo "sms++ successfully installed with $SOLVER" | tee -a "$log_file"
+	if [ "$KEEP_BUILD" = "0" ]; then 
+		rm -rf $INSTALLDIR/p4r-env/scripts/add-ons/.build
+	fi
 else
 	echo "Error: sms++ install failed" | tee -a "$log_file"
 fi
@@ -456,15 +547,21 @@ cd $INSTALLDIR/p4r-env/scripts/include
 chmod a+x *.sh
 cd $INSTALLDIR
 
+if [ ! -d $INSTALLDIR/p4r-env/data/toyDataset ]; then
+	echo " Create example dataset toyDataset "
+	cd $INSTALLDIR/p4r-env/data/data
+	git clone https://github.com/plan4res/toyDataset
+fi	
+
 if [ -d $INSTALLDIR/documentation ]; then
 	echo " Update documentation "
 	cd $INSTALLDIR/documentation
 	git pull	
-else
+else									
 	echo " Get documentation "
 	cd $INSTALLDIR
 	git clone https://github.com/plan4res/documentation
-fi
+fi											  
 
 echo "update environment variables and create plan4res commands"
 cd $INSTALLDIR
