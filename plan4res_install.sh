@@ -27,9 +27,11 @@ p4r() {
 
 usage() {
 	echo "Usage: $0 [-S <SOLVER>] [-I <installer>] [-L <license>] [-v <version>] "
-	echo "          [-U <software>] [-M <mpi>] [-V <memory>] [-C] [-H]"
+	echo "          [-U <software>] [-M <mpi>] [-V <memory>] [-X] [-C] [-B] [-H]"
 	echo "Option -S is mandatory, it is used to specify which solver will be installed and used in SMS++"
 	echo "       SOLVER can be : CPLEX, GUROBI, SCIP, or HiGHS"
+	echo "Option -D means that the required solver is already installed in SOLVER_DIR "
+	echo "       only useable with option -X"	
 	echo "Option -I is used only with CPLEX and GUROBI"	
 	echo "       It is mandatory if CPLEX or GUROBI needs to be installed"	
 	echo "       installer is the linux installer file (cplex_xxx.bin or gurobiXXX.tar.gz)"	
@@ -177,6 +179,7 @@ HiGHS_UPDATE=0
 version="9.2.0"
 WITHOUT_P4R_ENV=0
 KEEP_BUILD=0
+SOLVER_DIR=""
 
 # treat arguments
 while [[ "$#" -gt 0 ]]; do
@@ -204,6 +207,12 @@ while [[ "$#" -gt 0 ]]; do
 			test_option $1 $2
 			shift 2
 			echo "use license $LICENSE" | tee -a "$log_file"
+		;;
+		-D|--solverdir) 
+			SOLVER_DIR=$2 
+			test_option $1 $2
+			shift 2
+			echo "use solver installed in $DIR" | tee -a "$log_file"
 		;;
 		-V|--vagrant) 
 			VAGRANT="VAGRANT"
@@ -425,6 +434,20 @@ fi
 if [ "$SOLVER" != "HiGHS" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS ]; then
 	SolverFlag+="--without-highs "
 fi
+
+if [ "$SOLVER" = "CPLEX" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
+	SolverFlag+="--cplex-root=$SOLVER_DIR "
+fi
+if [ "$SOLVER" = "GUROBI" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
+	SolverFlag+="--gurobi-root=$SOLVER_DIR "
+fi
+if [ "$SOLVER" = "SCIP" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
+	SolverFlag+="--scip-root=$SOLVER_DIR "
+fi
+if [ "$SOLVER" = "HiGHS" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
+	SolverFlag+="--highs-root=$SOLVER_DIR "
+fi
+
 SolverFlag+="--without-smspp --without-interact "
 if [ "${STOPT_UPDATE}" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
 if [ "${SMSPP_UPDATE}" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
