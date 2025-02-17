@@ -361,91 +361,83 @@ if [[ "$SOLVER" != "" && "$SOLVER" != "CPLEX" && "$SOLVER" != "GUROBI" && "$SOLV
 fi
 
 SolverFlag=""
-# Check installer 
+# Check solvers requirements
 if [[ $SOLVER == "CPLEX" || $SOLVER == "GUROBI" ]]; then
-	if [[ -z $INSTALLER ]]; then
-		echo "Error : Option -L <INSTALLER> is mandatory for $SOLVER." | tee -a "$log_file"
-		usage
-	fi
-	if [[ $SOLVER == "CPLEX" && $INSTALLER != *.bin ]]; then
-		echo "Error : a .bin file is needed for CPLEX" | tee -a "$log_file"
-		usage
-	elif [[ $SOLVER == "GUROBI" && $INSTALLER != *.tar.gz ]]; then
-		echo "Error : a .tar.gz file s needed for $SOLVER." | tee -a "$log_file"
-		usage
-	fi
-	if [[ $SOLVER == "CPLEX" ]]; then
-		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
-			echo "CPLEX installer: $INSTALLER found, copying to p4r-env" | tee -a "$log_file"
-			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
-			SolverFlag+="--cplex-installer=$INSTALLER "
-		else
-			echo "Error: CPLEX installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
-			exit 1
+	SolverFlag+="--without-scip --without-highs "
+	if [ $SOLVER == "CPLEX" ]; then SolverFlag+="--without-gurobi "; else SolverFlag+="--without-cplex "; fi
+	# is solver already installed?
+	INSTALLED=0
+	if [ "$WITHOUT_P4R_ENV" = "0" ]; then
+		# cas in p4r-env
+		if [ $SOLVER == "CPLEX" ]; then
+			if cplex_installed; then INSTALLED=1 ; fi
 		fi
-	elif [[ $SOLVER == "GUROBI" ]]; then
-		if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
-			echo "GUROBI installer $INSTALLDIR/$INSTALLER found, copying to p4r-env" | tee -a "$log_file"
-			cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
-			if [ -f "$INSTALLDIR/$LICENSE" ] ; then
-				echo "GUROBI license $INSTALLDIR/$LICENSE found, copying to p4r-env" | tee -a "$log_file"
-				cp "$INSTALLDIR/$LICENSE" $INSTALLDIR/p4r-env/
-				SolverFlag+="--gurobi-installer=$INSTALLER --gurobi-license=$LICENSE "
+		if [ $SOLVER == "GUROBI" ]; then
+			if gurobi_installed; then INSTALLED=1 ; fi
+		fi
+	else
+		if [ "$SOLVER_DIR" != "" ]; then 
+			INSTALLED=1; 
+			# in the case without p4r-env, pass solver path if already installed
+			if [ "$SOLVER" = "CPLEX" ]; then SolverFlag+="--cplex-root=$SOLVER_DIR "; fi
+			if [ "$SOLVER" = "GUROBI" ]; then SolverFlag+="--gurobi-root=$SOLVER_DIR "; fi
+		fi	
+	fi	
+	if [ "$INSTALLED" = "0" ]; then 
+		# solver is not installed, installer and license required
+		if [[ -z $INSTALLER ]] ; then
+			echo "Error : Option -L <INSTALLER> is mandatory for $SOLVER." | tee -a "$log_file"
+			usage
+		fi
+		if [[ $SOLVER == "CPLEX" && $INSTALLER != *.bin ]]; then
+			echo "Error : a .bin file is needed for CPLEX" | tee -a "$log_file"
+			usage
+		elif [[ $SOLVER == "GUROBI" && $INSTALLER != *.tar.gz ]]; then
+			echo "Error : a .tar.gz file s needed for $SOLVER." | tee -a "$log_file"
+			usage
+		fi
+		if [[ $SOLVER == "CPLEX" ]]; then
+			if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
+				echo "CPLEX installer: $INSTALLER found, copying to p4r-env" | tee -a "$log_file"
+				cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
+				SolverFlag+="--cplex-installer=$INSTALLER "
 			else
-				echo "Error: GUROBI license $INSTALLDIR/$LICENSE not found" | tee -a "$log_file"
+				echo "Error: CPLEX installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
 				exit 1
 			fi
-		else
-			echo "Error: GUROBI installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
-			exit 1
+		elif [[ $SOLVER == "GUROBI" ]]; then
+			if [ -f "$INSTALLDIR/$INSTALLER" ] ; then
+				echo "GUROBI installer $INSTALLDIR/$INSTALLER found, copying to p4r-env" | tee -a "$log_file"
+				cp "$INSTALLDIR/$INSTALLER" $INSTALLDIR/p4r-env/
+				if [ -f "$INSTALLDIR/$LICENSE" ] ; then
+					echo "GUROBI license $INSTALLDIR/$LICENSE found, copying to p4r-env" | tee -a "$log_file"
+					cp "$INSTALLDIR/$LICENSE" $INSTALLDIR/p4r-env/
+					SolverFlag+="--gurobi-installer=$INSTALLER --gurobi-license=$LICENSE "
+				else
+					echo "Error: GUROBI license $INSTALLDIR/$LICENSE not found" | tee -a "$log_file"
+					exit 1
+				fi
+			else
+				echo "Error: GUROBI installer $INSTALLDIR/$INSTALLER not found" | tee -a "$log_file"
+				exit 1
+			fi
 		fi
 	fi
 elif [[ ($SOLVER == "SCIP") || ($SOLVER == "HiGHS") ]]; then
+	SolverFlag+="--without-cplex --without-gurobi "
 	if [ "$SOLVER" = "SCIP" ]; then
-		scip_installed
-		test=$?
-		option="scip"
+		SolverFlag+="--without-highs "
 		SolverFlag+="--scip-version=$version "
+		if [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then SolverFlag+="--scip-root=$SOLVER_DIR "; fi
 	elif [ "$SOLVER" = "HiGHS" ]; then
-		highs_installed  
-		test=$?
-		option="HiGHS"
+		SolverFlag+="--without-scip "
+		if [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then SolverFlag+="--highs-root=$SOLVER_DIR "; fi
 	fi 
-	if [ $test -eq 0 ] ; then
-		echo "$SOLVER already installed in $INSTALLDIR/p4r-env/scripts/add-ons/install/$option" | tee -a "$log_file"
-	else
-		echo "$SOLVER not installed, installing" | tee -a "$log_file"
-	fi
+
 	# Ignore option -L for SCIP and HIGHS
 	if [[ -n $INSTALLER ]]; then
 		echo "Warning : option -I $INSTALLER is ignored for $SOLVER." | tee -a "$log_file"
 	fi
-fi
-
-if [ "$SOLVER" != "CPLEX" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/cplex ]; then
-	SolverFlag+="--without-cplex "
-fi
-if [ "$SOLVER" != "GUROBI" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/gurobi ]; then
-	SolverFlag+="--without-gurobi "
-fi
-if [ "$SOLVER" != "SCIP" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/scip ]; then
-	SolverFlag+="--without-scip "
-fi
-if [ "$SOLVER" != "HiGHS" ] && [ ! -d $INSTALLDIR/p4r-env/scripts/add-ons/install/HiGHS ]; then
-	SolverFlag+="--without-highs "
-fi
-
-if [ "$SOLVER" = "CPLEX" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
-	SolverFlag+="--cplex-root=$SOLVER_DIR "
-fi
-if [ "$SOLVER" = "GUROBI" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
-	SolverFlag+="--gurobi-root=$SOLVER_DIR "
-fi
-if [ "$SOLVER" = "SCIP" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
-	SolverFlag+="--scip-root=$SOLVER_DIR "
-fi
-if [ "$SOLVER" = "HiGHS" ] && [ "$WITHOUT_P4R_ENV" = "1" ] && [ "$SOLVER_DIR" != "" ]; then
-	SolverFlag+="--highs-root=$SOLVER_DIR "
 fi
 
 SolverFlag+="--without-smspp --without-interact "
