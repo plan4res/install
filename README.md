@@ -29,7 +29,11 @@ From your terminal, type
         -v/--version is optionnal and allows to choose the version if using SCIP (9.2.0 used if not provided)
    
             -v 9.2.0
-        
+
+        -D/--solverdir is optionnal ; it can only be used together with option -X. It allows to specify the location where the solver is already installed
+
+            -D /solverpath
+
         -M/--mpi is optional, it is used to change the mpi version (default: OpenMPI)"	
         
             mpi can be: OpenMPI or MPICH
