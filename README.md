@@ -41,6 +41,8 @@ From your terminal, type
             
             This option can be included many times (eg -U stopt -U coin)
         
+        -X/--withoutp4renv : proceed to install without the p4r-env environment. In that case, the required software necessary for sms++ will be installed
+        
         -B/--keepbuild : do not delete the .build directory where source code is downloaded and compilation done
         
         -C/--clean is used to remove plan4res
