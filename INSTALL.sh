@@ -441,8 +441,16 @@ scip_version="9.2.0"
 install_root=""
 build_root=""
 
+# create log file
+configfile="$INSTALLDIR/p4r-env/config/plan4res.conf"
+datestart=$(date +"%Y-%m-%d-%H:%M")
+sms_log_file="./smsppInstall_$datestart.log"
+touch $log_file
+echo "starting $(date +"%Y-%m-%d-%H:%M")" | tee -a  "$sms_log_file"
+echo "Installing plan4res on $INSTALLDIR" | tee -a  "$sms_log_file"
+
 # Parse command line 
-echo "INSTALL.sh launched with arguments: $@"
+echo "INSTALL.sh launched with arguments: $@" | tee -a  "$sms_log_file"
 for arg in "$@"
 do
 	case $arg in
@@ -541,7 +549,7 @@ case "$OS" in
 	"Linux")
 		if [ -f /etc/os-release ]; then
 			. /etc/os-release
-			echo "distribution: $ID"
+			echo "distribution: $ID" | tee -a  "$sms_log_file"
 			if [ "$ID" = "ubuntu" ] || [ "$ID" = "debian" ]; then
 			# Check if the user has sudo access
 				if sudo -n true 2>/dev/null; then
@@ -584,11 +592,11 @@ case "$OS" in
 				SMSPP_INSTALL_ROOT="${INSTALL_ROOT}/sms++"
 				install_on_linux
 			else
-				echo "This script supports Ubuntu or Debian only."
+				echo "This script supports Ubuntu or Debian only." | tee -a  "$sms_log_file"
 				exit 1
 			fi
 		else
-			echo "This script supports Debian-based Linux distros only."
+			echo "This script supports Debian-based Linux distros only." | tee -a  "$sms_log_file"
 			exit 1
 		fi
 		;;
@@ -598,7 +606,7 @@ case "$OS" in
 		install_on_macos
 		;;
 	*)
-		echo "This script does not support the detected operating system."
+		echo "This script does not support the detected operating system." | tee -a  "$sms_log_file"
 		exit 1
 		;;
 esac
@@ -606,7 +614,7 @@ esac
 # Skip compilation if running in a GitLab CI/CD Docker container
 if ! { [ -f /.dockerenv ] && [ "$CI" = "true" ]; }; then
 	# Install SMSpp
-	echo "Compiling SMS++..."
+	echo "Compiling SMS++..." | tee -a  "$sms_log_file"
 	SMSPP_URL=https://gitlab.com/smspp/smspp-project.git
 	smsbranch="develop"
   
@@ -614,30 +622,30 @@ if ! { [ -f /.dockerenv ] && [ "$CI" = "true" ]; }; then
 	# Check if the SMSpp repository already exists
 	if [ -d "$SMSPP_BUILD_ROOT" ]; then
 		cd $SMSPP_BUILD_ROOT
-		echo "SMS++ already installed. "
+		echo "SMS++ already installed. " | tee -a  "$sms_log_file"
 		if [ $update_smspp -eq 1 ] ; then 
-			echo "Pulling latest changes..."
+			echo "Pulling latest changes..." | tee -a  "$sms_log_file"
 			git pull origin $smsbranch
 			git submodule foreach --recursive "if git show-ref --verify --quiet refs/remotes/origin/$smsbranch ; then git pull origin $smsbranch ; else git pull origin master; fi"
 		fi
 	else
-		echo "Repository not found locally. Cloning SMS++..."
+		echo "Repository not found locally. Cloning SMS++..." | tee -a  "$sms_log_file"
 		if [ -z "$DISPLAY" ] || [ ! -t 1 ] || [ "$no_interact" -eq 1 ] ; then 
 			# clone in the BUILD_ROOT	
-			echo "clone sms++ modules for plan4res"
+			echo "clone sms++ modules for plan4res" | tee -a  "$sms_log_file"
 			git clone --branch $smsbranch --recurse-submodules $SMSPP_URL "$SMSPP_BUILD_ROOT"
 			cd $SMSPP_BUILD_ROOT
 			# force submodules to checkout in the requested branch
 			git submodule foreach --recursive "if git show-ref --verify --quiet refs/remotes/origin/$smsbranch ; then git checkout $smsbranch ; else git checkout master; fi"
 		else
-			echo "clone full sms++"
+			echo "clone full sms++" | tee -a  "$sms_log_file"
 			git clone --branch $smsbranch $SMSPP_URL "$SMSPP_BUILD_ROOT"
 		fi
 	fi
 	cd $SMSPP_BUILD_ROOT
 
 	# If the installation root is not the default one, update the makefile-paths
-	echo "build in $SMSPP_BUILD_ROOT and install in $SMSPP_INSTALL_ROOT"
+	echo "build in $SMSPP_BUILD_ROOT and install in $SMSPP_INSTALL_ROOT" | tee -a  "$sms_log_file"
 	# GUROBI_ROOT has changed and it can be found out of GUROBI_HOME which is an env var even if Gurobi was not installed just now
 	if [ ! -z $GUROBI_HOME ]; then GUROBI_ROOT=$(echo $GUROBI_HOME | sed 's/\/linux64$//') ; fi
 	if [[ ("$OS" == "Linux" && "$INSTALL_ROOT" != "/opt") ||
@@ -699,18 +707,17 @@ if ! { [ -f /.dockerenv ] && [ "$CI" = "true" ]; }; then
 	
 		# choose OSi_QP version depending on solvers installed
 		if [ -d "$CPLEX_ROOT" ]; then
-			echo "repo $CPLEX_ROOT exists, building with CPLEX"
+			echo "repo $CPLEX_ROOT exists, building with CPLEX" | tee -a  "$sms_log_file"
 			# if cplex is installed, choose Cplex
 			CMAKEFLAGS+="-DWHICH_OSI_QP=1"
 		elif [ ! -z $GUROBI_HOME ] && [ -d "$GUROBI_ROOT/$GRBDIR" ]; then
-			echo "repo $GUROBI_ROOT/$GRBDIR exists, building with GUROBI"
+			echo "repo $GUROBI_ROOT/$GRBDIR exists, building with GUROBI" | tee -a  "$sms_log_file"
 			# if cplex not there but gurobi installed, choose gurobi
 			CMAKEFLAGS+="-DWHICH_OSI_QP=2"
 		else
 			# if none of cplex or gurobi is there use Clp
 			CMAKEFLAGS+="-DWHICH_OSI_QP=0 -DWHICH_OSI_MP=0"
 		fi
-		echo "CMAKEFLAGS=$CMAKEFLAGS"
 		cmake -S . -B build $CMAKEFLAGS
 		cmake --build build
 		# compile in BUILD_ROOT, install in INSTALL_ROOT
@@ -724,7 +731,7 @@ if ! { [ -f /.dockerenv ] && [ "$CI" = "true" ]; }; then
 			cmake --build build
 			cmake --install build
 		else
-			echo "ccmake fails with exit code $CCMAKE_EXIT_CODE."
+			echo "ccmake fails with exit code $CCMAKE_EXIT_CODE." | tee -a  "$sms_log_file"
 			exit 1
 		fi
 	fi
