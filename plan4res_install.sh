@@ -564,7 +564,7 @@ cd $INSTALLDIR
 
 if [ ! -d $INSTALLDIR/p4r-env/data/toyDataset ]; then
 	echo " Create example dataset toyDataset "
-	cd $INSTALLDIR/p4r-env/data/data
+	cd $INSTALLDIR/p4r-env/data
 	git clone https://github.com/plan4res/toyDataset
 fi	
 
@@ -590,4 +590,4 @@ else
 	echo "<INSTALLDIR> is the location where you ran plan4res_install.sh"
 fi
 
-echo "plan4res install completed" | tee -a "$log_file"
+echo "plan4res install completed" 
