@@ -562,22 +562,6 @@ cd $INSTALLDIR/p4r-env/scripts/include
 chmod a+x *.sh
 cd $INSTALLDIR
 
-if [ ! -d $INSTALLDIR/p4r-env/data/toyDataset ]; then
-	echo " Create example dataset toyDataset "
-	cd $INSTALLDIR/p4r-env/data
-	git clone https://github.com/plan4res/toyDataset
-fi	
-
-if [ -d $INSTALLDIR/documentation ]; then
-	echo " Update documentation "
-	cd $INSTALLDIR/documentation
-	git pull	
-else									
-	echo " Get documentation "
-	cd $INSTALLDIR
-	git clone https://github.com/plan4res/documentation
-fi											  
-
 echo "update environment variables and create plan4res commands"
 cd $INSTALLDIR
 if [ -f user_init_plan4res.sh ]; then
