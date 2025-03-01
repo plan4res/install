@@ -6,7 +6,6 @@ datestart=$(date +"%Y-%m-%d-%H:%M")
 log_file="$INSTALLDIR/plan4resInstall_$datestart.log"
 echo "Installing plan4res on $INSTALLDIR" | tee -a  "$log_file"
 echo "starting $(date +"%Y-%m-%d-%H:%M")" | tee -a  "$log_file"
-touch $log_file
 
 test_option() {
 	local code=$1
