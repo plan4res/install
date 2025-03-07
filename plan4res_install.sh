@@ -437,7 +437,10 @@ elif [[ ($SOLVER == "SCIP") || ($SOLVER == "HiGHS") ]]; then
 	if [[ -n $INSTALLER ]]; then
 		echo "Warning : option -I $INSTALLER is ignored for $SOLVER." | tee -a "$log_file"
 	fi
+else 
+	SolverFlag+="--without-cplex --without-gurobi --without-scip --without-highs "
 fi
+
 if [ "$WITHOUT_P4R_ENV" = "0"  ]; then SolverFlag+="--without-linux-update "; fi
 SolverFlag+="--without-smspp --without-interact "
 if [ "${STOPT_UPDATE}" = "0" ]; then SolverFlag+="--without-stopt-update " ; fi
@@ -445,7 +448,7 @@ if [ "${SMSPP_UPDATE}" = "0" ]; then SolverFlag+="--without-smspp-update " ; fi
 if [ "${COIN_UPDATE}" = "0" ]; then SolverFlag+="--without-coin-update " ; fi
 SolverFlag+="--build-root=$INSTALLDIR/p4r-env/scripts/add-ons/.build --install-root=$INSTALLDIR/p4r-env/scripts/add-ons/install"
 
-
+if [ "$WITHOUT_P4R_ENV" = "0"  ]; then SolverFlag+=" --without-linux-update "; fi
 
 # if cplex update requested, remove cplex install dir
 if [ "${CPLEX_UPDATE}" = "1" ]; then
@@ -561,6 +564,7 @@ cd $INSTALLDIR/p4r-env/scripts/include
 chmod a+x *.sh
 cd $INSTALLDIR
 
+
 echo "update environment variables and create plan4res commands"
 cd $INSTALLDIR
 if [ -f user_init_plan4res.sh ]; then
@@ -573,4 +577,4 @@ else
 	echo "<INSTALLDIR> is the location where you ran plan4res_install.sh"
 fi
 
-echo "plan4res install completed" 
+echo "plan4res install completed"
