@@ -569,7 +569,7 @@ echo "update environment variables and create plan4res commands"
 cd $INSTALLDIR
 if [ -f user_init_plan4res.sh ]; then
 	chmod a+x user_init_plan4res.sh
-	./user_init_plan4res.sh "$INSTALLDIR"
+	./user_init_plan4res.sh -D "$INSTALLDIR"
 else
 	echo "the script user_init_plan4res.sh is not present in $INSTALLDIR"
 	echo "You need to move to the location where you want to store your data"
