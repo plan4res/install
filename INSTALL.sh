@@ -215,7 +215,7 @@ EOL
 	if [ "$install_gurobi" -eq 1 ] && [ ! -d "$GUROBI_ROOT/$GRBDIR" ]; then
 		echo "Installing Gurobi..."					 
         cd "$INSTALL_ROOT"
-		if [ ! -d ${GUROBI_ROOT} ]; then mkdir ${IGUROBI_ROOT} ; fi
+		if [ ! -d ${GUROBI_ROOT} ]; then mkdir ${GUROBI_ROOT} ; fi
 		if [ "$gurobi_installer" = "" ]; then
 			curl -O "https://packages.gurobi.com/10.0/$GUROBI_INSTALLER"
 			tar -xvf "$GUROBI_INSTALLER"
