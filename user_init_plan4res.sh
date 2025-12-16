@@ -18,9 +18,10 @@ usage() {
 	echo "It will create the environment variables P4R_DIR and P4R_DIR_LOCAL"
 	echo "	P4R_DIR is where plan4res is installed (there is a repo P4R_DIR/p4r-env"
 	echo "	P4R_DIR_LOCAL is where your datasets and the results of plan4res will be"
-	echo "It will also create the functions p4r and sp4r"
+	echo "It will also create the functions p4r, sp4r and spp4r"
 	echo "	p4r is used to run plan4res"
 	echo "	sp4r is used to run on an HPC cluster with SLURM"
+	echo "	spp4r is used to run on an HPC cluster with SLURM, for simulation only, with 2 levels of parallélisation (per groups of scenarios and per scenarios)"
 	echo "and an example of dataset and settings in data/toyDataset"
 	echo ""
 	echo "Usage: ./user_init_plan4res -D [ <installdir> ] -S [ <SOLVER> ]"
@@ -77,6 +78,7 @@ function update_solver {
 }
 
 SOLVER=""
+
 # treat arguments
 while [[ "$#" -gt 0 ]]; do
 	case $1 in
@@ -137,8 +139,9 @@ update_env_var() {
 
 
 update_env_var "P4R_DIR_LOCAL" $local_dir
-update_env_var "P4R_DIR" "$INSTALL_DIR/p4r-env"
+update_env_var "P4R_DIR" "${INSTALL_DIR}/p4r-env"
 update_env_var "SINGULARITY_BIND" "$INSTALL_DIR/p4r-env/"
+									   
 
 #functions_to_add=$( cat << 'EOF'
 functions_to_add=$(cat << 'EOF'
@@ -168,6 +171,44 @@ sp4r() {
 	sbatch "$file" "$P4R_DIR" "${sbatch_args[@]}"
 }
 
+spp4r() {
+	local new_nodes_value
+	local args=("$@")
+	local sbatch_args=()
+	local sizegroupsim=1
+	while [[ "$1" != "" ]]; do
+		case $1 in
+		    -n | --nodes ) shift
+		                   new_nodes_value="$1"
+		                   ;;
+			-k | --kgroup ) shift
+		                   nb_group_sim="$1"
+		                   ;;
+		    * )		   sbatch_args+=("$1")    
+				   ;;
+		esac
+		shift
+	done
+	
+	file="$(pwd)/this_sbatch_p4r.sh"	
+	cp $P4R_DIR/scripts/include/sbatch_p4r.sh $file
+	echo "changing requested number of nodes to: $new_nodes_value and running ${sbatch_args[*]} via sbatch file $file"
+		
+	sed -i "/^#SBATCH --nodes=/c #SBATCH --nodes=$new_nodes_value" "$file"
+	
+	if [[ $nb_group_sim > 1 ]]; then
+		echo " launching $nb_group_sim jobs"
+		for ((grp=0; grp<$nb_group_sim; grp++)); do
+			export ARGS=("$@")
+			sbatch "$file" "$P4R_DIR" "${sbatch_args[@]}" "-k $grp"
+			echo " launched :sbatch $file $P4R_DIR ${sbatch_args[@]} -k $grp"
+		done
+	else		
+		export ARGS=("$@")
+		sbatch "$file" "$P4R_DIR" "${sbatch_args[@]}"
+	fi
+}
+
 p4r() {
 	source $P4R_DIR/scripts/include/run_p4r.sh "$P4R_DIR" "$@"
 }
@@ -177,19 +218,18 @@ EOF
 	)
 		
 #Add functions to .bashrc
-if ! grep -q -e "sp4r()" -e "p4r()" "$BASHRC_FILE"; then
+if ! grep -q -e "sp4r()" -e "spp4r()" -e "p4r()" "$BASHRC_FILE"; then
     echo "adding functions to .bashrc $BASHRC_FILE"
     echo "$functions_to_add" >> $BASHRC_FILE
-    echo " functions p4r and sp4r added to bashrc"
+    echo " functions p4r, sp4r and spp4r added to bashrc"
 else
-    echo " functions p4r and sp4r already in bashrc, replacing them"
+    echo " functions p4r, sp4r and spp4r already in bashrc, replacing them"
     sed -i '/# function for launching plan4res/,/# end function for launching plan4res/d' "$BASHRC_FILE"
     echo "$functions_to_add" >> $BASHRC_FILE
 fi
 
 echo "sourcing .bashrc $BASHRC_FILE"
 
-#source $BASHRC_FILE
 source ~/.bashrc
 
 if [ -d $local_dir/documentation ]; then
@@ -223,8 +263,10 @@ update_solver "$local_dir/data/toyDataset/settings/uc_solverconfig.txt" "$SOLVER
 cd ../..
 echo "Installation finalised"
 echo "To run plan4res type: p4r [MODE] dataset [options]"
-echo "To run plan4res on a cluster with SLURM, type: sp4r -n [NumberNodes] [MODE] dataset [options]"
-echo "    MODE = CLEAN / CREATE / FORMAT / SSV / SIM / CEM / SSVandSIM / SSVandCEM / POSTTREAT "
+echo "To run plan4res on a cluster with SLURM, type: sp4r [MODE] dataset [options] -n [NumberNodes] "
+echo "To run plan4res simulation on a cluster with SLURM, with a second level of parallelisation per groups of scenarios"
+echo "  type: spp4r [MODE] dataset [options] -g [sizegroup} -n [NumberNodes] "
+echo "    MODE = CLEAN / CONFIG / LINKGENESYS / CREATE / FORMAT / SSV / CEM / SIM / SIMsddp / SIMBLOCK / SSVandSIM / SSVandCEM / POSTTREAT "
 echo "    dataset = name of dataset (e.g. mini)"
 echo "    options: see from full help"
 echo " get full help : p4r --help"
